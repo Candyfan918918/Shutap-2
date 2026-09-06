@@ -14,7 +14,10 @@
 //   · identity + tier resolved from the bearer token and the subscriptions table
 //   · the daily generation counter incremented BEFORE any model call, so a
 //     crash mid-generation cannot hand out free generations
-//   · guest cards are returned but never written to joke_cards
+//   · guest cards are returned but never written to joke_cards; a free alias
+//     keeps only the card it turned over (see keepJokeCard) — the two it did
+//     not are never stored, so they cannot be read back later. Members turn
+//     over all three, so all three are written at the deal.
 //   · signing in merges today's counter instead of minting a fresh allowance
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
@@ -52,15 +55,15 @@ type FlipRow = {
 
 /* ── the daily generation budget ──
    Situations a day, and the three cards each one costs. A guest and a free
-   alias get the same two — the alias buys keeping and sharing, not room.
-   Members get three, and (see flipsAllowed) turn over all three cards of
-   every one of them. The members' cap is tunable with JOKE_DAILY_SETS /
-   JOKE_DAILY_CARDS. */
+   alias get one, and turn over one of its three cards — the alias buys
+   keeping and sharing, not room. Members get three, and (see flipsAllowed)
+   turn over all three cards of every one of them. The members' cap is
+   tunable with JOKE_DAILY_SETS / JOKE_DAILY_CARDS. */
 type Budget = { cards: number; sets: number }
 
 const DAILY: Record<JokeTier, Budget> = {
-  guest: { cards: 6, sets: 2 },
-  free: { cards: 6, sets: 2 },
+  guest: { cards: 3, sets: 1 },
+  free: { cards: 3, sets: 1 },
   paying: { cards: 9, sets: 3 },
 }
 
@@ -286,8 +289,9 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
     if (angles.length !== 3) return { ok: false, reason: 'not_found', tier: id.tier }
 
     // Already dealt? Hand the same three back. A retry, a refresh or a double
-    // tap must never cost a second deal.
-    if (id.userId) {
+    // tap must never cost a second deal. Only members have all three on file;
+    // a free alias stores just the card it turned over, so this cannot apply.
+    if (id.tier === 'paying') {
       const { data: rows } = await supabaseAdmin
         .from('joke_cards')
         .select('id, angle, card_text, position, used_fallback, judge_score, created_at')
@@ -349,7 +353,10 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
       const angle = angles[position]!
       const out = lines[position]!
       let cardId: string | null = null
-      if (id.userId) {
+      // Members keep all three at the deal — they turn over all three. A free
+      // alias keeps only the one it turns over, written by keepJokeCard, so
+      // the two it never chose are never on file.
+      if (id.userId && id.tier === 'paying') {
         cardId = await persistCard(supabaseAdmin, {
           setId: set.id as string,
           userId: id.userId,
@@ -373,7 +380,9 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
       )
     }
 
-    if (id.userId) {
+    // The mirror hears what was actually read: a member reads all three, a
+    // free alias feeds it the one card it keeps (keepJokeCard).
+    if (id.userId && id.tier === 'paying') {
       void ingestJokeSignal(id.userId, set.id as string, cards.map((c) => c.text).join(' / ')).catch(() => {})
     }
 
@@ -618,11 +627,89 @@ const HeldCard = z.object({
   judge_score: z.number().nullable().optional(),
 })
 
+// ───────────────────── 5a · keep the card you turned over ─────────────────────
+//
+// A signed-in reader's flipped card is written to joke_cards and handed to
+// the mirror the moment it lands face-up. For a free alias this is the ONLY
+// write a set ever gets: the deal stored nothing, so what is kept is exactly
+// what was turned over, and the two cards left face-down are never on file.
+// Members already have all three from the deal; for them this is a no-op
+// that returns the stored id.
+
+export type KeepResult =
+  | { ok: true; card: JokeCard; tier: JokeTier }
+  | { ok: false; reason: 'sign_in_required' | 'not_found'; tier: JokeTier }
+
+export const keepJokeCard = createServerFn({ method: 'POST' })
+  .inputValidator((d: unknown) => z.object({ card: HeldCard, ...Ctx }).parse(d))
+  .handler(async ({ data }): Promise<KeepResult> => {
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+    const id = await resolveJokeIdentity(data.anon_session_id ?? null)
+    if (!id.userId) return { ok: false, reason: 'sign_in_required', tier: 'guest' }
+
+    const hold = data.card
+    const set = await loadOwnedSet(supabaseAdmin, hold.set_id, id.userId, data.anon_session_id ?? null)
+    if (!set) return { ok: false, reason: 'not_found', tier: id.tier }
+    // The card must be one of this set's three, in its own slot.
+    const angles = ((set.angles as string[]) ?? []).slice(0, 3)
+    if (angles[hold.position] !== hold.angle) return { ok: false, reason: 'not_found', tier: id.tier }
+
+    const { data: existing } = await supabaseAdmin
+      .from('joke_cards')
+      .select('id, card_text, used_fallback, judge_score, created_at')
+      .eq('set_id', hold.set_id)
+      .eq('position', hold.position)
+      .maybeSingle()
+    if (existing?.id) {
+      return {
+        ok: true,
+        tier: id.tier,
+        card: toCard({
+          id: existing.id as string,
+          position: hold.position,
+          angle: hold.angle,
+          text: (existing.card_text as string) ?? hold.text,
+          used_fallback: !!existing.used_fallback,
+          judge_score: (existing.judge_score as number | null) ?? null,
+          day: String(existing.created_at).slice(0, 10),
+        }),
+      }
+    }
+
+    const day = await resolveDay(supabaseAdmin, id.userId)
+    const cardId = await persistCard(supabaseAdmin, {
+      setId: hold.set_id,
+      userId: id.userId,
+      position: hold.position,
+      angle: hold.angle,
+      text: hold.text,
+      used_fallback: hold.used_fallback ?? false,
+      judge_score: hold.judge_score ?? null,
+    })
+    if (!cardId) return { ok: false, reason: 'not_found', tier: id.tier }
+    void ingestJokeSignal(id.userId, hold.set_id, hold.text).catch(() => {})
+
+    return {
+      ok: true,
+      tier: id.tier,
+      card: toCard({
+        id: cardId,
+        position: hold.position,
+        angle: hold.angle,
+        text: hold.text,
+        used_fallback: hold.used_fallback ?? false,
+        judge_score: hold.judge_score ?? null,
+        day,
+      }),
+    }
+  })
+
 export const claimJokeSession = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) =>
     z
       .object({
-        /** the three cards the guest was reading, so none of them are lost */
+        /** the cards the guest had turned over, so none of them are lost —
+         *  never the face-down ones, which stay unwritten */
         hold: z.array(HeldCard).max(3).nullable().optional(),
         terms_version: z.string().max(32).optional(),
         ...Ctx,

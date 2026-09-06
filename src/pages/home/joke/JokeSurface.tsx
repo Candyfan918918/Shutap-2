@@ -21,6 +21,7 @@ import {
   submitJokeEntry,
   dealJokeCards,
   claimJokeSession,
+  keepJokeCard,
   listMyJokeCards,
   postJokeCardToRoom,
   exportJokeCards,
@@ -79,6 +80,7 @@ export function JokeSurface() {
   const submit = useServerFn(submitJokeEntry)
   const deal = useServerFn(dealJokeCards)
   const claim = useServerFn(claimJokeSession)
+  const keep = useServerFn(keepJokeCard)
   const listCards = useServerFn(listMyJokeCards)
   const postCard = useServerFn(postJokeCardToRoom)
   const exportCards = useServerFn(exportJokeCards)
@@ -166,6 +168,10 @@ export function JokeSurface() {
       jokeTrack('card_revealed', tier, {
         slot, position, used_fallback: c?.used_fallback ?? null,
       })
+      // Signed in, the card you turned over is kept the moment it lands —
+      // written to your set list and handed to the mirror. The two still
+      // face-down are not: they were never yours to read.
+      if (c && signedIn && !c.id) void ensureKept(c)
     },
     onSpentTap: (slot) => {
       jokeTrack('spent_card_tapped', tier, { slot })
@@ -198,7 +204,7 @@ export function JokeSurface() {
     if (!p) return
     if (p.type === 'save') void doSave(at(p.position))
     else if (p.type === 'saveSet') void doSaveSet()
-    else if (p.type === 'share') { setFocus(at(p.position)); setShareOpen(true) }
+    else if (p.type === 'share') void openShare(at(p.position))
     else if (p.type === 'post') void doPost(at(p.position))
     else if (p.type === 'checkout') void navigate({ to: '/subscribe', search: { plan: 'monthly' } as never })
     else if (p.type === 'upgrade') { jokeTrack('upgrade_shown', tier, { after: 'limit' }); setUpgradeOpen(true) }
@@ -207,11 +213,13 @@ export function JokeSurface() {
 
   /** Sign-in lands back on this page. Claim the guest session, then resume. */
   const claimAndResume = useCallback(async () => {
-    // Whatever they were reading as a guest rides along, so the gate costs
-    // them none of it.
+    // Whatever they had turned over as a guest rides along, so the gate costs
+    // them none of it. Only what was turned over: the face-down cards stay
+    // unwritten, exactly as they would for a free alias.
+    const revealed = new Set(deck.revealedSlots.map((s) => s.key as string))
     const held = set
       ? cards
-          .filter((c) => !c.id)
+          .filter((c) => !c.id && revealed.has(c.angle))
           .map((c) => ({
             set_id: set.id,
             position: c.position,
@@ -252,7 +260,7 @@ export function JokeSurface() {
       if (res.alias_is_new) setCeremonyOpen(true)
       else setResumeAt((n) => n + 1)
     } catch { /* leave them signed in without a claim */ }
-  }, [claim, ctx, cards, set, refresh])
+  }, [claim, ctx, cards, set, refresh, deck.revealedSlots])
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
@@ -390,9 +398,42 @@ export function JokeSurface() {
     return cards.find((c) => c.position === position) ?? null
   }
 
+  /** A signed-in reader's turned-over card, on file. The deal stores nothing
+   *  for a free alias, so the first save, share or post of a card — or its
+   *  reveal, whichever comes first — is what writes it. Idempotent: a card
+   *  that already has an id is handed straight back. */
+  async function ensureKept(target: JokeCard): Promise<JokeCard> {
+    if (target.id || !signedIn || !set) return target
+    try {
+      const res = await keep({
+        data: {
+          card: {
+            set_id: set.id,
+            position: target.position,
+            angle: target.angle,
+            text: target.text,
+            used_fallback: target.used_fallback,
+            judge_score: target.judge_score,
+          },
+          ...ctx(),
+        },
+      })
+      if (!res.ok) return target
+      const kept = { ...target, ...res.card, saved: true }
+      setCards((prev) => prev.map((c) => (c.position === kept.position ? kept : c)))
+      jokeTrack('card_kept', res.tier, { slot: kept.angle })
+      void refresh()
+      return kept
+    } catch {
+      return target
+    }
+  }
+
   async function doSave(target: JokeCard | null) {
     if (!target) return
-    if (!signedIn || !target.id) { raiseGate('save', { type: 'save', position: target.position }); return }
+    if (!signedIn) { raiseGate('save', { type: 'save', position: target.position }); return }
+    target = await ensureKept(target)
+    if (!target.id) { raiseGate('save', { type: 'save', position: target.position }); return }
     setFocus(target)
     setSaving(true)
     try {
@@ -434,11 +475,13 @@ export function JokeSurface() {
     }
   }
 
-  function openShare(target: JokeCard | null) {
+  async function openShare(target: JokeCard | null) {
     if (!target) return
     // Never hidden, never disabled, never asterisked — a guest gets the sheet
     // at the moment they reach for it, and keeps the card either way.
-    if (!signedIn || !target.id) { raiseGate('share', { type: 'share', position: target.position }); return }
+    if (!signedIn) { raiseGate('share', { type: 'share', position: target.position }); return }
+    target = await ensureKept(target)
+    if (!target.id) { raiseGate('share', { type: 'share', position: target.position }); return }
     jokeTrack('card_shared', tier, { slot: target.angle })
     setFocus(target)
     setShareOpen(true)
@@ -446,7 +489,9 @@ export function JokeSurface() {
 
   async function doPost(target: JokeCard | null) {
     if (!target) return
-    if (!signedIn || !target.id) { raiseGate('post', { type: 'post', position: target.position }); return }
+    if (!signedIn) { raiseGate('post', { type: 'post', position: target.position }); return }
+    target = await ensureKept(target)
+    if (!target.id) { raiseGate('post', { type: 'post', position: target.position }); return }
     setFocus(target)
     try {
       const res = await postCard({ data: { card_id: target.id, ...ctx() } })
@@ -476,9 +521,9 @@ export function JokeSurface() {
   /** The set list, newest first, each situation with the cards under it.
    *  The open set shows only what has actually been turned over — the two
    *  still face-down are not in the list, because as far as the reader is
-   *  concerned they have not been written. Older sets come back from the
-   *  server as stored, since the deal writes all three at once (see the
-   *  note in dealCards). */
+   *  concerned they have not been written. Older sets come back as stored,
+   *  which for a free alias is only ever the card it turned over
+   *  (keepJokeCard) and for a member all three. */
   const groups = useMemo<SetGroup[]>(() => {
     const out: SetGroup[] = []
     const seen = new Map<string, SetGroup>()
@@ -714,7 +759,7 @@ export function JokeSurface() {
                           label={slot.label}
                           canPost={signedIn}
                           onPost={() => void doPost(dealt)}
-                          onShare={() => openShare(dealt)}
+                          onShare={() => void openShare(dealt)}
                           onDownload={() => void doSave(dealt)}
                         />
                       ) : null}

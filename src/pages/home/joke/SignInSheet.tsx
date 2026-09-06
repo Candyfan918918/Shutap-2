@@ -27,7 +27,7 @@ const SHEET_BODY: Record<string, string> = {
   post: 'nobody in a room ever sees who you are. the alias is the name they know you by, and it is not yours.',
   keep: "reading is free forever. an alias is only so your set belongs to someone — 30 seconds, no real name, no password.",
   checkout: 'the clean cards land in the same place your alias does. one link, then both.',
-  limit: "an alias keeps every card you turn over, and it is the door to the members' deck — three situations a day, all three cards. a fake name — 30 seconds, no real name, no password.",
+  limit: "an alias keeps the card you turn over, and it is the door to the members' deck — three situations a day, all three cards. a fake name — 30 seconds, no real name, no password.",
 }
 
 export function SignInSheet({

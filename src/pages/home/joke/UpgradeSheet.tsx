@@ -9,7 +9,7 @@ import { EyeMark, ShutapWordmark } from '@/components/brand/EyeMark'
 import { Button, SORA, NEWS } from './ui'
 
 const LINES = [
-  'three situations a day, not two',
+  'three situations a day, not one',
   'turn over all three cards of every set',
   'exports with no shutap mark',
   '2160×3840 — print-size',

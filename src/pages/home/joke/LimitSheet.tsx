@@ -33,21 +33,22 @@ function copy(tier: JokeTier, reason: LimitSheetReason, usage: JokeUsage | null)
       body: `not you, the network. give it a little while and the deck is back. the cards you already have stay right here.`,
     }
   }
-  const sets = word(usage?.sets_cap ?? (tier === 'paying' ? 3 : 2))
+  const cap = usage?.sets_cap ?? (tier === 'paying' ? 3 : 1)
+  const sets = `${word(cap)} ${cap === 1 ? 'situation' : 'situations'}`
   if (tier === 'guest') {
     return {
-      lead: `that's the deck for today — ${sets} situations.`,
-      body: `it resets ${reset}. an alias — a fake one, thirty seconds — keeps every card you turn over. members get three situations a day, turn over all three cards of each, and save them with no mark.`,
+      lead: `that's the deck for today — ${sets}.`,
+      body: `it resets ${reset}. an alias — a fake one, thirty seconds — keeps the card you turn over. members get three situations a day, turn over all three cards of each, and save them with no mark.`,
     }
   }
   if (tier === 'free') {
     return {
-      lead: `that's the deck for today — ${sets} situations.`,
+      lead: `that's the deck for today — ${sets}.`,
       body: `it resets ${reset}. members get three situations a day, turn over all three cards of each, and save them clean and four times bigger.`,
     }
   }
   return {
-    lead: `that's the whole deck for today — ${sets} situations.`,
+    lead: `that's the whole deck for today — ${sets}.`,
     body: `i wrote every card of it. the deck resets ${reset}, and your set list is right here in the meantime.`,
   }
 }
@@ -96,7 +97,7 @@ export function LimitSheet({
             ))}
           </span>
           <span style={{ fontFamily: SORA, fontSize: 12.5, color: MUTED }}>
-            {used} of {usage.sets_cap} situations today · resets {resetLabel(usage)}
+            {used} of {usage.sets_cap} {usage.sets_cap === 1 ? 'situation' : 'situations'} today · resets {resetLabel(usage)}
           </span>
         </div>
       ) : null}
