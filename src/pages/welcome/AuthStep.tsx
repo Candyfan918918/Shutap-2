@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import { Words } from '@/components/motion'
 import { supabase } from '@/integrations/supabase/client'
+import { sendMagicLink } from '@/lib/magic-link.functions'
 import { lovable } from '@/integrations/lovable'
 import { EyeMark, oauthBtn, ACCENT, TEXT, SOFT, MUTED, type Msg } from './shared'
 
@@ -59,11 +60,21 @@ export function AuthStep() {
     try {
       const emailRedirectTo = window.location.origin + '/welcome'
       const parts = nameTrim ? splitName(nameTrim) : undefined
-      const { error: otpErr } = await supabase.auth.signInWithOtp({ email: v, options: { emailRedirectTo, shouldCreateUser: true, ...(parts ? { data: parts } : {}) } })
-      if (otpErr) {
-        setMsg({ kind: 'err', text: otpErr.message })
-        track('sign_in_failed', { method: 'email', reason: otpErr.message })
-        return
+      // Branded link + code from hello@shutap.com; Supabase's stock email is
+      // only the fallback when that path is unavailable.
+      const branded = await sendMagicLink({ data: { email: v, redirectTo: emailRedirectTo, ...(parts ? { data: parts } : {}) } }).catch(() => null)
+      if (!branded?.ok) {
+        if (branded?.error === 'rate_limited') {
+          setMsg({ kind: 'err', text: 'too many links in a row — give the last one a minute.' })
+          track('sign_in_failed', { method: 'email', reason: 'rate_limited' })
+          return
+        }
+        const { error: otpErr } = await supabase.auth.signInWithOtp({ email: v, options: { emailRedirectTo, shouldCreateUser: true, ...(parts ? { data: parts } : {}) } })
+        if (otpErr) {
+          setMsg({ kind: 'err', text: otpErr.message })
+          track('sign_in_failed', { method: 'email', reason: otpErr.message })
+          return
+        }
       }
       setEmailPhase('code')
       setMsg({ kind: 'ok', text: 'we emailed you a 6-digit code — enter it below (the magic link also works).' })

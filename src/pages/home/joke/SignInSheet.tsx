@@ -6,6 +6,7 @@
 // a route change, so nobody loses the cards they were reading.
 import { useState } from 'react'
 import { supabase } from '@/integrations/supabase/client'
+import { sendMagicLink } from '@/lib/magic-link.functions'
 import { Button, Sheet, CompanionLine, SORA, NEWS, MUTED, ACCENT_SOFT, INK, FAINT } from './ui'
 
 const TERMS_VERSION = '2026-09-04'
@@ -57,11 +58,19 @@ export function SignInSheet({
       try {
         localStorage.setItem('shutap_terms', JSON.stringify({ version: TERMS_VERSION, at: new Date().toISOString() }))
       } catch { /* noop */ }
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: window.location.href, shouldCreateUser: true },
-      })
-      if (error) { setErr('that did not send. try again in a moment?'); return }
+      const address = email.trim()
+      const redirectTo = window.location.href
+      // The link goes out in shutap's own design from hello@shutap.com. If that
+      // path is unavailable, Supabase's stock email still gets the alias made.
+      const branded = await sendMagicLink({ data: { email: address, redirectTo } }).catch(() => null)
+      if (!branded?.ok) {
+        if (branded?.error === 'rate_limited') { setErr('that is a lot of links. give the last one a minute?'); return }
+        const { error } = await supabase.auth.signInWithOtp({
+          email: address,
+          options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
+        })
+        if (error) { setErr('that did not send. try again in a moment?'); return }
+      }
       setSent(true)
     } finally {
       setBusy(false)
