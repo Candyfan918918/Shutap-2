@@ -28,8 +28,11 @@ import {
 import {
   ARCHETYPE_LABEL,
   exportSpec,
+  usageBlock,
+  usageIsCurrent,
   type JokeCard,
   type JokeTier,
+  type JokeUsage,
   type SlotKey,
 } from '@/lib/jokes/deck'
 import { PLAN_TO_PRICE, usd } from '@/lib/pricing'
@@ -52,6 +55,7 @@ import { SignInSheet } from './SignInSheet'
 import { AliasCeremony, type CeremonyAlias } from './AliasCeremony'
 import { CardShareSheet } from './CardShareSheet'
 import { UpgradeSheet } from './UpgradeSheet'
+import { LimitSheet, type LimitSheetReason } from './LimitSheet'
 import { Button, CompanionLine, Eyebrow, SORA, NEWS, INK, MUTED, FAINT, ACCENT } from './ui'
 
 /** What the reader asked for when the alias gate went up, resumed afterwards.
@@ -63,6 +67,8 @@ type Pending =
   | { type: 'post'; position: number }
   | { type: 'saveSet' }
   | { type: 'checkout' }
+  /** the limit sheet sent a guest to get an alias; the members' offer follows */
+  | { type: 'upgrade' }
 
 type SetState = { id: string; situation: string; archetype: string }
 
@@ -96,6 +102,11 @@ export function JokeSurface() {
   const [phase, setPhase] = useState<'idle' | 'reading' | 'dealing'>('idle')
   const [dealFailed, setDealFailed] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
+  /** Today's counter, as the server last reported it. Consulted before a
+   *  spill is sent, so a spent day is answered from here without a round
+   *  trip — the server still has the final say. */
+  const [usage, setUsage] = useState<JokeUsage | null>(null)
+  const [limit, setLimit] = useState<{ open: boolean; reason: LimitSheetReason }>({ open: false, reason: 'daily_sets' })
   /** The card an action was last aimed at. The deck has no single "current"
    *  card any more, so the share sheet and the after-save panel both need to
    *  be told which one they are talking about. */
@@ -145,7 +156,10 @@ export function JokeSurface() {
     seed: set?.id ?? 'empty',
     tier,
     written,
-    failed: dealFailed,
+    // A refused deal releases a card turned over early just as a jammed one
+    // does — otherwise it stays parked on its edge, and the deck reads as two
+    // cards with a hole where the third should be.
+    failed: dealFailed || refusal !== null,
     onFirstFlip: (slot, position) => jokeTrack('first_flip_slot', tier, { slot, position }),
     onReveal: (slot, position) => {
       const c = bySlot.get(slot)
@@ -161,12 +175,13 @@ export function JokeSurface() {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await listCards({ data: {} })
+      const res = await listCards({ data: ctx() })
       setTier(res.tier)
       setList(res.cards)
+      setUsage(res.usage)
       if (res.alias) setAlias(res.alias)
     } catch { /* stay guest */ }
-  }, [listCards])
+  }, [listCards, ctx])
 
   useEffect(() => { void refresh() }, [refresh])
 
@@ -186,6 +201,7 @@ export function JokeSurface() {
     else if (p.type === 'share') { setFocus(at(p.position)); setShareOpen(true) }
     else if (p.type === 'post') void doPost(at(p.position))
     else if (p.type === 'checkout') void navigate({ to: '/subscribe', search: { plan: 'monthly' } as never })
+    else if (p.type === 'upgrade') { jokeTrack('upgrade_shown', tier, { after: 'limit' }); setUpgradeOpen(true) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeAt])
 
@@ -255,6 +271,12 @@ export function JokeSurface() {
     jokeTrack('alias_gate_shown', tier, { trigger })
   }
 
+  /** The limit, instead of a deck. Nothing is written for a spent day. */
+  function openLimit(reason: LimitSheetReason) {
+    setLimit({ open: true, reason })
+    jokeTrack('limit_shown', tier, { reason, sets_used: usage?.sets_used ?? null, sets_cap: usage?.sets_cap ?? null })
+  }
+
   function closeCeremony() {
     setCeremonyOpen(false)
     jokeTrack('alias_ceremony_done', tier)
@@ -270,6 +292,13 @@ export function JokeSurface() {
     const raw = text.trim()
     if (raw.length < 12) { say('give me a few more words and i will find the funny in it.'); return }
     if (phase !== 'idle') return
+    // A spent day is answered here, on enter, from the counter the server
+    // last handed over — the spill never leaves the composer, and no model
+    // is asked to write a set the deal would only refuse.
+    if (usageIsCurrent(usage)) {
+      const blocked = usageBlock(usage)
+      if (blocked) { openLimit(blocked); return }
+    }
     setBusy(true)
     setRefusal(null)
     setDealFailed(false)
@@ -282,6 +311,14 @@ export function JokeSurface() {
         // No cards, no gate, no paywall. Pain is never the thing being sold.
         setSet(null); setCards([]); setCrisis(true)
         jokeTrack('crisis_route_shown', tier)
+        return
+      }
+      if (res.limited) {
+        // The server read the counter before anything else ran: no set was
+        // opened, nothing was scrubbed or written. The words stay in the box.
+        setTier(res.tier)
+        setUsage(res.usage)
+        openLimit(res.reason)
         return
       }
       setCrisis(false)
@@ -318,10 +355,21 @@ export function JokeSurface() {
       const res = await deal({ data: { set_id: setId, ...ctx() } })
       if (!res.ok) {
         jokeTrack('deal_refused', res.tier, { reason: res.reason })
+        setTier(res.tier)
+        if (res.usage) setUsage(res.usage)
+        if (res.reason === 'daily_sets' || res.reason === 'daily_cards') {
+          // The budget ran out between the spill and the deal (a second tab,
+          // a day that rolled over). No deck for a set that will not be
+          // written: the limit sheet, same as on enter.
+          setSet(null); setCards([])
+          openLimit(res.reason)
+          return
+        }
         setRefusal(refusalCopy(res.reason))
         return
       }
       setTier(res.tier)
+      setUsage(res.usage)
       setCards(res.cards)
       jokeTrack('cards_dealt', res.tier, {
         fallbacks: res.cards.filter((c) => c.used_fallback).length,
@@ -804,6 +852,23 @@ export function JokeSurface() {
         onNote={say}
       />
 
+      <LimitSheet
+        open={limit.open}
+        tier={tier}
+        reason={limit.reason}
+        usage={usage}
+        onClose={() => setLimit((l) => ({ ...l, open: false }))}
+        onAlias={() => {
+          setLimit((l) => ({ ...l, open: false }))
+          raiseGate('limit', { type: 'upgrade' })
+        }}
+        onUpgrade={() => {
+          setLimit((l) => ({ ...l, open: false }))
+          jokeTrack('upgrade_shown', tier, { after: 'limit' })
+          setUpgradeOpen(true)
+        }}
+      />
+
       <UpgradeSheet
         open={upgradeOpen}
         price={PRICE}
@@ -821,10 +886,9 @@ export function JokeSurface() {
   )
 }
 
-/** Refusals are cost guards, not paywalls: they never point at checkout. */
-function refusalCopy(reason: 'daily_cards' | 'daily_sets' | 'rate_limited' | 'not_found'): string {
+/** Refusals are cost guards, not paywalls: they never point at checkout.
+ *  The daily budget is not one of these any more — it gets the limit sheet. */
+function refusalCopy(reason: 'rate_limited' | 'not_found'): string {
   if (reason === 'rate_limited') return "easy — you've been flipping fast. back in a minute."
-  if (reason === 'daily_sets') return "that's the last situation i can write for today. the deck resets tomorrow."
-  if (reason === 'daily_cards') return "i'm out of jokes for today — genuinely, not as a sales pitch. tomorrow they're back."
   return 'i lost track of that set. say it again and i will start over.'
 }

@@ -18,6 +18,7 @@ const SHEET_LEAD: Record<string, string> = {
   post: 'rooms need a name too — a fake one, same as the cards.',
   keep: 'cards need a name. a fake one.',
   checkout: 'an alias first, then the clean ones.',
+  limit: 'an alias gets you six situations a day.',
 }
 
 const SHEET_BODY: Record<string, string> = {
@@ -26,6 +27,7 @@ const SHEET_BODY: Record<string, string> = {
   post: 'nobody in a room ever sees who you are. the alias is the name they know you by, and it is not yours.',
   keep: "reading is free forever. an alias is only so your set belongs to someone — 30 seconds, no real name, no password.",
   checkout: 'the clean cards land in the same place your alias does. one link, then both.',
+  limit: "the guest deck is two a day; an alias is six, and it keeps every card you turn over. a fake name — 30 seconds, no real name, no password.",
 }
 
 export function SignInSheet({

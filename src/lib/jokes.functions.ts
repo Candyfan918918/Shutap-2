@@ -20,8 +20,17 @@ import { z } from 'zod'
 import { runScrub } from './agents/scrubber.functions'
 import { runClassifyCrisis } from './agents/guard.functions'
 import { classifyArchetype, dealSlots, generateLine } from './jokes/deck.server'
-import { resolveJokeIdentity, resolveDay, ipFlipLimit, ipSubjectKey } from './jokes/session.server'
-import { angleLabel, angleAccent, exportSpec, type JokeCard, type JokeTier } from './jokes/deck'
+import { resolveJokeIdentity, resolveDay, resolveDayInfo, ipFlipLimit, ipSubjectKey } from './jokes/session.server'
+import {
+  angleLabel,
+  angleAccent,
+  exportSpec,
+  usageBlock,
+  type JokeCard,
+  type JokeTier,
+  type JokeUsage,
+  type LimitReason,
+} from './jokes/deck'
 import { renderCardSvg, cardFilename } from './jokes/card-art'
 
 const Ctx = {
@@ -71,6 +80,26 @@ async function readCounter(admin: any, subjectKey: string, day: string): Promise
     .eq('day', day)
     .maybeSingle()
   return (data as FlipRow | null) ?? { subject_key: subjectKey, day, flips_used: 0, sets_flipped: 0, set_ids: [] }
+}
+
+/** Today's counter against today's cap, in the shape the browser keeps. */
+function usageOf(tier: JokeTier, counter: FlipRow, resetsAt: string): JokeUsage {
+  const cap = budget(tier)
+  return {
+    cards_used: counter.flips_used,
+    cards_cap: cap.cards,
+    sets_used: counter.sets_flipped,
+    sets_cap: cap.sets,
+    resets_at: resetsAt,
+  }
+}
+
+/** Has the coarse per-network layer already been spent today? Read-only. */
+async function networkSpent(admin: any, day: string): Promise<boolean> {
+  const ipKey = ipSubjectKey()
+  if (!ipKey) return false
+  const row = await readCounter(admin, ipKey, day)
+  return row.flips_used >= ipFlipLimit()
 }
 
 /** Charge the counter BEFORE generating, so a crash cannot refund itself. */
@@ -153,8 +182,12 @@ async function loadOwnedSet(
 
 export type JokeEntryResult =
   | { crisis: true }
+  /** Today's budget is spent. Nothing was scrubbed, classified, stored or
+   *  written — the spill never left the composer. */
+  | { crisis: false; limited: true; reason: LimitReason | 'rate_limited'; tier: JokeTier; usage: JokeUsage }
   | {
       crisis: false
+      limited: false
       set_id: string
       clean_text: string
       archetype: string
@@ -170,6 +203,18 @@ export const submitJokeEntry = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<JokeEntryResult> => {
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
     const id = await resolveJokeIdentity(data.anon_session_id ?? null)
+
+    // budget first — before the scrubber, the crisis classifier or a row.
+    // A spent counter is answered from the counter alone; no model is asked
+    // to write cards that the deal would only refuse.
+    const { day, resetsAt } = await resolveDayInfo(supabaseAdmin, id.userId)
+    const counter = await readCounter(supabaseAdmin, id.subjectKey, day)
+    const usage = usageOf(id.tier, counter, resetsAt)
+    const blocked = usageBlock(usage)
+    if (blocked) return { crisis: false, limited: true, reason: blocked, tier: id.tier, usage }
+    if (await networkSpent(supabaseAdmin, day)) {
+      return { crisis: false, limited: true, reason: 'rate_limited', tier: id.tier, usage }
+    }
 
     // scrub first — the raw text is never stored
     const scrubbed = await runScrub(data.raw)
@@ -207,6 +252,7 @@ export const submitJokeEntry = createServerFn({ method: 'POST' })
 
     return {
       crisis: false,
+      limited: false,
       set_id: row.id as string,
       clean_text: clean,
       archetype,
@@ -219,16 +265,16 @@ export const submitJokeEntry = createServerFn({ method: 'POST' })
 // ───────────────────── 2 · deal the three cards ─────────────────────
 
 export type DealResult =
-  | { ok: true; cards: JokeCard[]; tier: JokeTier; cards_used: number; sets_used: number }
-  | { ok: false; reason: 'not_found'; tier: JokeTier }
-  | { ok: false; reason: 'daily_cards' | 'daily_sets' | 'rate_limited'; tier: JokeTier }
+  | { ok: true; cards: JokeCard[]; tier: JokeTier; cards_used: number; sets_used: number; usage: JokeUsage }
+  | { ok: false; reason: 'not_found'; tier: JokeTier; usage?: JokeUsage }
+  | { ok: false; reason: 'daily_cards' | 'daily_sets' | 'rate_limited'; tier: JokeTier; usage: JokeUsage }
 
 export const dealJokeCards = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ set_id: z.string().uuid(), ...Ctx }).parse(d))
   .handler(async ({ data }): Promise<DealResult> => {
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
     const id = await resolveJokeIdentity(data.anon_session_id ?? null)
-    const day = await resolveDay(supabaseAdmin, id.userId)
+    const { day, resetsAt } = await resolveDayInfo(supabaseAdmin, id.userId)
 
     const set = await loadOwnedSet(supabaseAdmin, data.set_id, id.userId, data.anon_session_id ?? null)
     if (!set) return { ok: false, reason: 'not_found', tier: id.tier }
@@ -251,6 +297,7 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
           tier: id.tier,
           cards_used: counter.flips_used,
           sets_used: counter.sets_flipped,
+          usage: usageOf(id.tier, counter, resetsAt),
           cards: rows.map((r: any) =>
             toCard({
               id: r.id,
@@ -270,17 +317,23 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
     const counter = await readCounter(supabaseAdmin, id.subjectKey, day)
     const cap = budget(id.tier)
     const counted = counter.set_ids.includes(set.id as string)
+    const usage = usageOf(id.tier, counter, resetsAt)
     if (!counted && counter.sets_flipped >= cap.sets) {
-      return { ok: false, reason: 'daily_sets', tier: id.tier }
+      return { ok: false, reason: 'daily_sets', tier: id.tier, usage }
     }
     if (counter.flips_used + 3 > cap.cards) {
-      return { ok: false, reason: 'daily_cards', tier: id.tier }
+      return { ok: false, reason: 'daily_cards', tier: id.tier, usage }
     }
     if ((await chargeNetwork(supabaseAdmin, day, 3)) === 'limited') {
-      return { ok: false, reason: 'rate_limited', tier: id.tier }
+      return { ok: false, reason: 'rate_limited', tier: id.tier, usage }
     }
 
     await charge(supabaseAdmin, id.subjectKey, day, counter, 3, set.id as string)
+    const charged: JokeUsage = {
+      ...usage,
+      cards_used: counter.flips_used + 3,
+      sets_used: counted ? counter.sets_flipped : counter.sets_flipped + 1,
+    }
 
     const situation = (set.clean_text as string) ?? ''
     const archetype = (set.archetype as string) ?? 'general'
@@ -325,8 +378,9 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
       ok: true,
       tier: id.tier,
       cards,
-      cards_used: counter.flips_used + 3,
-      sets_used: counted ? counter.sets_flipped : counter.sets_flipped + 1,
+      cards_used: charged.cards_used,
+      sets_used: charged.sets_used,
+      usage: charged,
     }
   })
 
@@ -711,10 +765,18 @@ export const claimJokeSession = createServerFn({ method: 'POST' })
 
 export const listMyJokeCards = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ ...Ctx }).parse(d ?? {}))
-  .handler(async (): Promise<{ tier: JokeTier; cards: JokeCard[]; alias: { display_name: string; emoji: string } | null }> => {
-    const id = await resolveJokeIdentity(null)
-    if (!id.userId) return { tier: 'guest', cards: [], alias: null }
+  .handler(async ({ data: input }): Promise<{
+    tier: JokeTier
+    cards: JokeCard[]
+    alias: { display_name: string; emoji: string } | null
+    /** today's counter, so the composer knows before it sends */
+    usage: JokeUsage
+  }> => {
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+    const id = await resolveJokeIdentity(input.anon_session_id ?? null)
+    const { day, resetsAt } = await resolveDayInfo(supabaseAdmin, id.userId)
+    const usage = usageOf(id.tier, await readCounter(supabaseAdmin, id.subjectKey, day), resetsAt)
+    if (!id.userId) return { tier: 'guest', cards: [], alias: null, usage }
     const [{ data }, { data: alias }] = await Promise.all([
       supabaseAdmin
         .from('joke_cards')
@@ -757,6 +819,7 @@ export const listMyJokeCards = createServerFn({ method: 'POST' })
       alias: alias
         ? { display_name: alias.display_name as string, emoji: alias.emoji as string }
         : null,
+      usage,
     }
   })
 

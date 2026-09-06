@@ -54,8 +54,12 @@ export function useDeck({
     return () => held.forEach((t) => window.clearTimeout(t))
   }, [])
 
-  // A new situation deals a new set: everything face-down again.
+  // A new situation deals a new set: everything face-down again — and no
+  // half-turn still in flight from the last set may land on this one, or a
+  // card ends up parked on its edge, invisible, before anyone touched it.
   useEffect(() => {
+    timers.current.forEach((t) => window.clearTimeout(t))
+    timers.current = []
     setPhases({})
     setPulsing(false)
     flipCount.current = 0
