@@ -6,11 +6,11 @@ import { SITE_URL } from '@/lib/site'
 import { countOpenRooms } from '@/lib/rooms-count.functions'
 import { listNewestRooms } from '@/lib/newest-rooms.functions'
 
-const HOME_TITLE = "Shutap — joke about it. your life, as a comedy set."
+const HOME_TITLE = "Shutap — Joke Cards from Whatever Just Happened"
 const HOME_DESCRIPTION =
-  "type whatever just happened to you — family, work, exes, strangers. shutap writes it into a set of joke cards, every angle on the same mess. pseudonymous."
+  "Type what just happened — work, exes, family, strangers. Shutap turns it into a set of joke cards, every comedic angle. pseudonymous."
 const HOME_OG_DESCRIPTION =
-  "type the thing that's living in your head. shutap turns it into a set. pseudonymous."
+  "Type what just happened — work, exes, family, strangers. Shutap turns it into a set of joke cards, every comedic angle. pseudonymous."
 
 const HOME_URL = `${SITE_URL}/`
 
@@ -29,13 +29,13 @@ export const Route = createFileRoute('/')({
     meta: [
       { title: HOME_TITLE },
       { name: "description", content: HOME_DESCRIPTION },
-      { property: "og:title", content: "SHUTAP. Joke about it." },
+      { property: "og:title", content: HOME_TITLE },
       { property: "og:description", content: HOME_OG_DESCRIPTION },
       { property: "og:type", content: "website" },
       { property: "og:url", content: HOME_URL },
       ...ogImageMeta(),
-      { name: "twitter:title", content: "SHUTAP. Joke about it." },
-      { name: "twitter:description", content: "life's a bitch. so make fun of it." },
+      { name: "twitter:title", content: HOME_TITLE },
+      { name: "twitter:description", content: HOME_DESCRIPTION },
     ],
     links: [
       { rel: "canonical", href: HOME_URL },
