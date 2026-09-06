@@ -146,6 +146,33 @@ export type JokeCard = {
 
 export type JokeTier = 'guest' | 'free' | 'paying'
 
+/* ─────────────────────────── the ladder ───────────────────────────
+   One place for the numbers every sheet, page and policy quotes. The server
+   enforces them (jokes.functions.ts reads DAILY_SETS; useDeck reads
+   FLIPS_PER_SET); the copy below only describes them. */
+
+/** situations a day */
+export const DAILY_SETS: Record<JokeTier, number> = { guest: 1, free: 1, paying: 3 }
+/** cards turned over per situation (of three) */
+export const FLIPS_PER_SET: Record<JokeTier, number> = { guest: 1, free: 1, paying: 3 }
+
+/** What a membership buys, stated as behaviour. */
+export const MEMBER_BENEFITS: { line: string; detail: string }[] = [
+  { line: 'three situations a day, not one', detail: 'the deck resets every day in your own timezone.' },
+  { line: 'turn over all three cards of every set', detail: 'the take, the clapback and the roast — not just the one you pick.' },
+  { line: 'exports with no shutap mark', detail: 'free cards carry a small mark in the corner; yours are clean.' },
+  { line: '2160×3840 — print-size', detail: 'four times the pixels of a free export.' },
+  { line: 'save all three as a set', detail: 'one tap, one zip, the whole situation.' },
+  { line: 'the mirror — what your situations keep saying', detail: 'every card you keep goes into a private record it reads back to you.' },
+]
+
+/** What never costs anything, at any tier. */
+export const ALWAYS_FREE = [
+  'typing what happened, with identifying details scrubbed first',
+  'one situation a day, and one of its three cards turned over',
+  'reading the card you turned over, for as long as you like',
+]
+
 /* ─────────────────────── the daily budget, as the client sees it ───────────────────────
    Resolved and enforced on the server; the browser only carries a copy so it
    can say "that's today's lot" the moment someone presses enter, instead of

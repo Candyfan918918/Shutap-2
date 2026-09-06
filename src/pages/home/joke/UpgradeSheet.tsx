@@ -4,18 +4,12 @@
 // already happened, the card is already theirs) and never before one, it never
 // appears while a set is still being read, and it never appears at all for a
 // crisis. Declining it costs nothing: all three cards stay free, forever.
-import type { JokeTier } from '@/lib/jokes/deck'
+import type React from 'react'
+import { ALWAYS_FREE, MEMBER_BENEFITS, type JokeTier } from '@/lib/jokes/deck'
 import { EyeMark, ShutapWordmark } from '@/components/brand/EyeMark'
-import { Button, SORA, NEWS } from './ui'
+import { Button, SORA, NEWS, INTER } from './ui'
 
-const LINES = [
-  'three situations a day, not one',
-  'turn over all three cards of every set',
-  'exports with no shutap mark',
-  '2160×3840 — print-size',
-  'save all three as a set',
-  'the mirror — what your situations keep saying',
-]
+const LINK: React.CSSProperties = { color: '#e7a3c2', textDecoration: 'underline', textUnderlineOffset: 3 }
 
 export function UpgradeSheet({
   open,
@@ -73,14 +67,32 @@ export function UpgradeSheet({
           </p>
         </div>
 
-        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 11 }}>
-          {LINES.map((line) => (
-            <li key={line} style={{ display: 'flex', gap: 11, alignItems: 'center', fontFamily: SORA, fontSize: 15, color: '#f0dbe6' }}>
-              <span style={{ color: '#5DCAA5', fontSize: 15 }}>✓</span>
-              {line}
+        {/* what a membership buys — each line says what it is, then why */}
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {MEMBER_BENEFITS.map((b) => (
+            <li key={b.line} style={{ display: 'flex', gap: 11, alignItems: 'flex-start' }}>
+              <span aria-hidden style={{ color: '#5DCAA5', fontSize: 15, lineHeight: 1.4 }}>✓</span>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontFamily: SORA, fontSize: 15, color: '#f0dbe6', lineHeight: 1.4 }}>{b.line}</span>
+                <span style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 14, color: '#b08ea0', lineHeight: 1.45 }}>{b.detail}</span>
+              </span>
             </li>
           ))}
         </ul>
+
+        {/* what stays free, so nobody buys what they already have */}
+        <div style={{ background: 'rgba(255,255,255,.05)', border: '.5px solid rgba(255,255,255,.12)', borderRadius: 16, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontFamily: SORA, fontWeight: 700, fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: '#9e7a8c' }}>
+            always free
+          </div>
+          {ALWAYS_FREE.map((line) => (
+            <div key={line} style={{ fontFamily: INTER, fontSize: 13.5, lineHeight: 1.5, color: '#d9bfcc' }}>· {line}</div>
+          ))}
+          <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 13.5, color: '#9e7a8c', marginTop: 4 }}>
+            new here?{' '}
+            <a href="/how-it-works" target="_blank" rel="noreferrer" style={LINK}>how the cards work →</a>
+          </div>
+        </div>
 
         <div style={{ fontFamily: SORA, fontWeight: 700, fontSize: 15, color: '#f7e8f0' }}>
           {price} / month · cancel whenever
@@ -95,8 +107,13 @@ export function UpgradeSheet({
           </Button>
         </div>
 
-        <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 14.5, color: '#9e7a8c', textAlign: 'center' }}>
-          typing your situation and reading your set stay free. always.
+        <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.55, color: '#9e7a8c', textAlign: 'center' }}>
+          renews monthly until you cancel; cancel anytime and keep access to the end of the period. payments already made are not refunded.
+          the cards are ai-written jokes, not advice — a membership buys pixels and room, never relief.{' '}
+          <a href="/terms#plans" target="_blank" rel="noreferrer" style={LINK}>plans &amp; limits</a> ·{' '}
+          <a href="/terms#refunds" target="_blank" rel="noreferrer" style={LINK}>billing &amp; refunds</a> ·{' '}
+          <a href="/privacy" target="_blank" rel="noreferrer" style={LINK}>privacy</a> ·{' '}
+          <a href="/disclaimer" target="_blank" rel="noreferrer" style={LINK}>disclaimer</a>
         </div>
       </div>
       <style>{`@keyframes shutapUpIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}`}</style>

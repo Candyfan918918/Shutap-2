@@ -202,7 +202,9 @@ export function SubscribePage() {
         {/* what opens */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginBottom: 28, ...fadeUp(0.06) }}>
           {[
-            'patterns across your scans — named',
+            'three situations a day, not one — all three cards turned over',
+            'exports with no shutap mark, print-size, the set in one tap',
+            'patterns across your cards and scans — named',
             'your arc over time, with proof',
             "what others who've been here came through",
           ].map((line) => (
@@ -326,11 +328,12 @@ export function SubscribePage() {
 
             {/* fine print */}
             <div style={{ fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: 12.5, lineHeight: 1.6, color: SOFT_MUTED, marginTop: 22, ...fadeUp(0.22) }}>
-              founders' pricing — locked in while you stay subscribed. cancel anytime from your profile; it takes effect at the end of the period. typing your situation, scan &amp; reading your set stay free, always. by subscribing you agree to the{' '}
+              founders' pricing — locked in while you stay subscribed. cancel anytime from your profile; it takes effect at the end of the period, and you go back to the free deal: one situation a day, one card. typing a situation, the scan and reading the card you turned over stay free, always. a membership buys room and pixels, never advice or relief. by subscribing you agree to the{' '}
               <a href="/terms" style={{ color: MUTED, textDecoration: 'underline' }}>terms</a>,{' '}
               <a href="/privacy" style={{ color: MUTED, textDecoration: 'underline' }}>privacy policy</a>,{' '}
               <a href="/disclaimer" style={{ color: MUTED, textDecoration: 'underline' }}>disclaimer</a> and{' '}
-              <a href="/terms#refunds" style={{ color: MUTED, textDecoration: 'underline' }}>refund policy</a>.
+              <a href="/terms#refunds" style={{ color: MUTED, textDecoration: 'underline' }}>refund policy</a>. new here?{' '}
+              <a href="/how-it-works" style={{ color: MUTED, textDecoration: 'underline' }}>how the cards work</a>.
             </div>
           </div>
         )}

@@ -12,7 +12,7 @@
  * Shared by the live surface and the design page so both walk the identical
  * machine, and there is only one place where "spent" is defined. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { SLOTS, shuffleSlots, type JokeTier, type SlotKey } from '@/lib/jokes/deck'
+import { FLIPS_PER_SET, SLOTS, shuffleSlots, type JokeTier, type SlotKey } from '@/lib/jokes/deck'
 import { HALF_TURN, prefersReducedMotion } from './FlipCard'
 
 /** `hold` is the mid-flip wait; `edge` is the one frame where content swaps. */
@@ -22,7 +22,7 @@ export type DeckPhase = 'front' | 'out' | 'hold' | 'edge' | 'in'
  *  day. Everyone else turns over one — and reads it, keeps it, shares it and
  *  downloads it on exactly the same terms. */
 export function flipsAllowed(tier: JokeTier): number {
-  return tier === 'paying' ? SLOTS.length : 1
+  return Math.min(SLOTS.length, FLIPS_PER_SET[tier])
 }
 
 export function useDeck({

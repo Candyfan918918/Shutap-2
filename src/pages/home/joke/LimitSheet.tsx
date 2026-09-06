@@ -117,10 +117,12 @@ export function LimitSheet({
         </Button>
       </div>
 
-      <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 13.5, color: FAINT, textAlign: 'center' }}>
+      <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.55, color: FAINT, textAlign: 'center' }}>
         {throttled
           ? 'nothing was written, nothing was charged.'
           : 'reading the cards you already have stays free either way.'}
+        {' '}
+        <a href="/how-it-works" target="_blank" rel="noreferrer" style={{ color: MUTED, textDecoration: 'underline', textUnderlineOffset: 3 }}>how the limits work →</a>
       </div>
     </Sheet>
   )

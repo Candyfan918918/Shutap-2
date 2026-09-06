@@ -7,9 +7,10 @@
 import { useState } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { sendMagicLink } from '@/lib/magic-link.functions'
+import { LEGAL_VERSION } from '@/lib/seo/legal'
 import { Button, Sheet, CompanionLine, SORA, NEWS, MUTED, ACCENT_SOFT, INK, FAINT } from './ui'
 
-const TERMS_VERSION = '2026-09-04'
+const TERMS_VERSION = LEGAL_VERSION.terms
 
 /** Why the gate went up — the companion says the true reason, not a generic one. */
 const SHEET_LEAD: Record<string, string> = {
@@ -112,7 +113,12 @@ export function SignInSheet({
               onChange={(e) => setOk18(e.target.checked)}
               style={{ marginTop: 3, width: 17, height: 17, accentColor: '#8e1c4c', flex: 'none' }}
             />
-            <span>i&apos;m 18 or over, and i accept the terms and privacy notice.</span>
+            <span>
+              i&apos;m 18 or over, and i accept the{' '}
+              <a href="/terms" target="_blank" rel="noreferrer" style={{ color: MUTED, textDecoration: 'underline', textUnderlineOffset: 2 }}>terms</a>
+              {' '}and{' '}
+              <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: MUTED, textDecoration: 'underline', textUnderlineOffset: 2 }}>privacy notice</a>.
+            </span>
           </label>
           {err ? (
             <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 15, color: '#a8003f' }}>{err}</div>

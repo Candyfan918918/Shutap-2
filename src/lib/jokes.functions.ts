@@ -25,7 +25,9 @@ import { runScrub } from './agents/scrubber.functions'
 import { runClassifyCrisis } from './agents/guard.functions'
 import { classifyArchetype, dealSlots, generateLine } from './jokes/deck.server'
 import { resolveJokeIdentity, resolveDay, resolveDayInfo, ipFlipLimit, ipSubjectKey } from './jokes/session.server'
+import { LEGAL_VERSION } from './seo/legal'
 import {
+  DAILY_SETS,
   angleLabel,
   angleAccent,
   exportSpec,
@@ -62,9 +64,9 @@ type FlipRow = {
 type Budget = { cards: number; sets: number }
 
 const DAILY: Record<JokeTier, Budget> = {
-  guest: { cards: 3, sets: 1 },
-  free: { cards: 3, sets: 1 },
-  paying: { cards: 9, sets: 3 },
+  guest: { cards: DAILY_SETS.guest * 3, sets: DAILY_SETS.guest },
+  free: { cards: DAILY_SETS.free * 3, sets: DAILY_SETS.free },
+  paying: { cards: DAILY_SETS.paying * 3, sets: DAILY_SETS.paying },
 }
 
 function budget(tier: JokeTier): Budget {
@@ -767,9 +769,9 @@ export const claimJokeSession = createServerFn({ method: 'POST' })
           birth_year: 1990,
           birth_month: 1,
           birth_day: 1,
-          accepted_terms_version: data.terms_version ?? '2026-09-04',
+          accepted_terms_version: data.terms_version ?? LEGAL_VERSION.terms,
           accepted_terms_at: new Date().toISOString(),
-          accepted_privacy_version: data.terms_version ?? '2026-09-04',
+          accepted_privacy_version: data.terms_version ?? LEGAL_VERSION.terms,
           accepted_privacy_at: new Date().toISOString(),
         } as never)
         if (!error) { alias = { display_name, emoji }; break }
@@ -778,7 +780,7 @@ export const claimJokeSession = createServerFn({ method: 'POST' })
       await supabaseAdmin
         .from('aliases')
         .update({
-          accepted_terms_version: data.terms_version ?? '2026-09-04',
+          accepted_terms_version: data.terms_version ?? LEGAL_VERSION.terms,
           accepted_terms_at: new Date().toISOString(),
         } as never)
         .eq('user_id', userId)

@@ -31,7 +31,7 @@ function PrivacyPage() {
     <DocLayout
       active="/privacy"
       title="Privacy Policy"
-      subline="Effective: July 1, 2026 · Controller: Shutap"
+      subline="Effective: September 6, 2026 · Controller: Shutap"
     >
       <h3>1. Our approach.</h3>
       <p>
@@ -48,8 +48,16 @@ function PrivacyPage() {
           notification preferences, consent records.
         </li>
         <li>
-          <b>Content:</b> your stories and check-in responses — stored{' '}
-          <b>only in scrubbed (de-identified) form</b>.
+          <b>Content:</b> the situations you type, the cards you turn over, your stories and
+          check-in responses — stored <b>only in scrubbed (de-identified) form</b>. Cards you leave
+          face down are never stored. As a guest, your cards are not stored at all until you choose
+          an alias.
+        </li>
+        <li>
+          <b>Daily allowance counters:</b> how many sets and cards were written today, keyed to your
+          account or, for guests, to a random browser session id we store in your browser, plus a
+          non-reversible hash of your network address for coarse rate limiting. Counters are
+          per-day and hold no content.
         </li>
         <li>
           <b>Usage:</b> analytics about how you use the app (via PostHog), tied to a pseudonymous
@@ -62,17 +70,20 @@ function PrivacyPage() {
 
       <h3>3. How we use it.</h3>
       <p>
-        To run the community and companion; to deliver check-ins; to provide the Mirror (your
-        patterns over time, for subscribers); to produce <b>aggregated, de-identified</b> insights
+        To write your cards and run the community and companion; to deliver check-ins; to enforce
+        daily allowances and rate limits; to provide the Mirror (for subscribers: a private record
+        built from the cards you turn over while signed in, and the patterns across them); to
+        produce <b>aggregated, de-identified</b> insights
         (&ldquo;what usually happens when…&rdquo;); to keep the service safe; and to comply with
         law. <b>We do not sell your personal information.</b>
       </p>
 
       <h3>4. AI processing.</h3>
       <p>
-        Your messages are processed by AI models (Google&rsquo;s Gemini, accessed through the
-        Lovable AI Gateway) to generate companion and Mirror responses. These responses are
-        generated automatically and are for support and reflection only.{' '}
+        Your situations and messages are processed by AI models (Google&rsquo;s Gemini, accessed
+        through the Lovable AI Gateway) to scrub identifying details, to check for crisis content,
+        to write the cards, and to generate companion and Mirror responses. These are generated
+        automatically and are for entertainment, support and reflection only.{' '}
         <b>We do not use your content to train AI models</b>, and we send it to these providers
         solely to generate your response.
       </p>
@@ -94,7 +105,9 @@ function PrivacyPage() {
       <h3>7. Retention.</h3>
       <p>
         We keep your data while your account is active and as needed for the purposes above; you
-        can delete your content or account at any time (Section 9).
+        can delete your content or account at any time (Section 9). Daily allowance counters are
+        kept per day and are not tied to content. A guest&rsquo;s scrubbed situation is kept only
+        so the set can be written and, if the guest later chooses an alias, claimed.
       </p>
 
       <h3>8. Security.</h3>

@@ -645,7 +645,7 @@ export function JokeSurface() {
               onMouseLeave={() => setHowOpen(false)}
               style={{
                 maxWidth: 460, overflow: 'hidden',
-                maxHeight: howOpen ? 240 : 0,
+                maxHeight: howOpen ? 300 : 0,
                 opacity: howOpen ? 1 : 0,
                 transform: howOpen ? 'none' : 'translateY(-4px)',
                 transition: 'max-height .38s cubic-bezier(.2,.8,.2,1), opacity .28s, transform .28s',
@@ -653,8 +653,11 @@ export function JokeSurface() {
             >
               <ol style={{ margin: 0, padding: '12px 18px', listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7, background: 'rgba(127,119,221,.06)', border: '1px solid rgba(11,8,15,.07)', borderRadius: 18, fontFamily: NEWS, fontStyle: 'italic', fontSize: 14.5, lineHeight: 1.5, color: '#443c42', textAlign: 'left' }}>
                 <li><span style={{ color: '#8e1c4c' }}>i.</span> type what happened — names get scrubbed before anything saves.</li>
-                <li><span style={{ color: '#8e1c4c' }}>ii.</span> if it lands well, i write you a set: a take, a clapback, a roast.</li>
-                <li><span style={{ color: '#8e1c4c' }}>iii.</span> reading the set is free. an alias is only needed to save or share one.</li>
+                <li><span style={{ color: '#8e1c4c' }}>ii.</span> i write you a set of three, face-down: a take, a clapback, a roast. you turn over one.</li>
+                <li><span style={{ color: '#8e1c4c' }}>iii.</span> one situation a day is free. an alias keeps the card you turned over; members get three a day and all three cards.</li>
+                <li style={{ fontFamily: SORA, fontStyle: 'normal', fontSize: 12.5 }}>
+                  <a href="/how-it-works" target="_blank" rel="noreferrer" style={{ color: '#8e1c4c', textDecoration: 'underline', textUnderlineOffset: 3 }}>the full explanation →</a>
+                </li>
               </ol>
             </div>
           </div>
