@@ -18,8 +18,9 @@ import { HALF_TURN, prefersReducedMotion } from './FlipCard'
 /** `hold` is the mid-flip wait; `edge` is the one frame where content swaps. */
 export type DeckPhase = 'front' | 'out' | 'hold' | 'edge' | 'in'
 
-/** Members turn over all three. Everyone else turns over one — and reads it,
- *  keeps it, shares it and downloads it on exactly the same terms. */
+/** Members turn over all three, on every one of their three situations a
+ *  day. Everyone else turns over one — and reads it, keeps it, shares it and
+ *  downloads it on exactly the same terms. */
 export function flipsAllowed(tier: JokeTier): number {
   return tier === 'paying' ? SLOTS.length : 1
 }

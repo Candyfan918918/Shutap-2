@@ -5,8 +5,9 @@
 //     the same three. READING THEM IS FREE AT EVERY TIER, guests included.
 //   · the only wall a guest hits is the alias gate, and it stands in front of
 //     SAVING and SHARING, never in front of reading.
-//   · money buys pixels and nothing else: no mark, print-size, the set in one
-//     tap. It never buys relief, and it never buys more jokes.
+//   · money buys pixels and room: no mark, print-size, the set in one tap,
+//     three situations a day with all three cards turned over. It never buys
+//     relief.
 //   · crisis overrides all of it — no cards, no gate, no paywall.
 //
 // Every rule that matters is enforced here, never in the browser:
@@ -50,22 +51,24 @@ type FlipRow = {
 }
 
 /* ── the daily generation budget ──
-   A cost guard, not a product tier. Free and paying share the same allowance
-   on purpose: money buys pixels, never jokes. Guests get less only because an
-   unauthenticated session is the cheapest thing on the internet to mint. */
+   Situations a day, and the three cards each one costs. A guest and a free
+   alias get the same two — the alias buys keeping and sharing, not room.
+   Members get three, and (see flipsAllowed) turn over all three cards of
+   every one of them. The members' cap is tunable with JOKE_DAILY_SETS /
+   JOKE_DAILY_CARDS. */
 type Budget = { cards: number; sets: number }
 
 const DAILY: Record<JokeTier, Budget> = {
   guest: { cards: 6, sets: 2 },
-  free: { cards: 18, sets: 6 },
-  paying: { cards: 18, sets: 6 },
+  free: { cards: 6, sets: 2 },
+  paying: { cards: 9, sets: 3 },
 }
 
 function budget(tier: JokeTier): Budget {
   const cards = Number(process.env['JOKE_DAILY_CARDS'] ?? '')
   const sets = Number(process.env['JOKE_DAILY_SETS'] ?? '')
   const base = DAILY[tier]
-  if (tier === 'guest') return base
+  if (tier !== 'paying') return base
   return {
     cards: Number.isFinite(cards) && cards > 0 ? Math.floor(cards) : base.cards,
     sets: Number.isFinite(sets) && sets > 0 ? Math.floor(sets) : base.sets,

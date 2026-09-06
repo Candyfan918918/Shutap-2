@@ -3,10 +3,11 @@
  * Goes up the moment someone presses enter on a spent day — before the spill
  * is sent anywhere, so no scrubber, classifier or writer runs for a set the
  * deal would only refuse. It says what the limit is, when it resets, and what
- * the next step buys: a guest is pointed at an alias (six situations a day
- * instead of two, and every card kept), and everyone under paying is shown the
- * members' offer after that. It never pretends money buys more jokes — it
- * does not — so the paying copy is a reset time and nothing else. */
+ * the next step buys: a guest is pointed at an alias (every card kept, and
+ * the door to the members' deck), and everyone under paying is shown the
+ * members' offer after that — three situations a day, all three cards turned
+ * over, stated as what they are. A paying member is at the top of that
+ * ladder, so their copy is a reset time and nothing else. */
 import type { JokeTier, JokeUsage, LimitReason } from '@/lib/jokes/deck'
 import { Button, CompanionLine, Sheet, SORA, NEWS, INK, MUTED, FAINT, ACCENT } from './ui'
 
@@ -32,17 +33,17 @@ function copy(tier: JokeTier, reason: LimitSheetReason, usage: JokeUsage | null)
       body: `not you, the network. give it a little while and the deck is back. the cards you already have stay right here.`,
     }
   }
-  const sets = word(usage?.sets_cap ?? (tier === 'guest' ? 2 : 6))
+  const sets = word(usage?.sets_cap ?? (tier === 'paying' ? 3 : 2))
   if (tier === 'guest') {
     return {
-      lead: `that's the guest deck for today — ${sets} situations.`,
-      body: `${sets} a day is what i write for someone without a name. an alias — a fake one, thirty seconds — gets you six a day and keeps every card you turn over. members turn over all three, and their cards carry no mark.`,
+      lead: `that's the deck for today — ${sets} situations.`,
+      body: `it resets ${reset}. an alias — a fake one, thirty seconds — keeps every card you turn over. members get three situations a day, turn over all three cards of each, and save them with no mark.`,
     }
   }
   if (tier === 'free') {
     return {
-      lead: `that's the whole deck for today — ${sets} situations.`,
-      body: `it resets ${reset}. until then: members turn over all three cards on every situation, and save them clean and four times bigger. same jokes, just yours properly.`,
+      lead: `that's the deck for today — ${sets} situations.`,
+      body: `it resets ${reset}. members get three situations a day, turn over all three cards of each, and save them clean and four times bigger.`,
     }
   }
   return {

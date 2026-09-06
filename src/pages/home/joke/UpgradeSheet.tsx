@@ -9,6 +9,8 @@ import { EyeMark, ShutapWordmark } from '@/components/brand/EyeMark'
 import { Button, SORA, NEWS } from './ui'
 
 const LINES = [
+  'three situations a day, not two',
+  'turn over all three cards of every set',
   'exports with no shutap mark',
   '2160×3840 — print-size',
   'save all three as a set',
@@ -67,7 +69,7 @@ export function UpgradeSheet({
             four times bigger.
           </h2>
           <p style={{ margin: '14px 0 0', fontFamily: NEWS, fontStyle: 'italic', fontSize: 19, lineHeight: 1.5, color: '#c4a0b2', maxWidth: '34ch' }}>
-            same three cards, same jokes. just yours, properly.
+            more of them, all of them turned over, and yours properly.
           </p>
         </div>
 
