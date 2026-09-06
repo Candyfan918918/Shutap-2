@@ -83,28 +83,27 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Shutap — Joke Cards from Whatever Just Happened" },
+      { title: "Shutap — joke about it. your life, as a comedy set." },
       {
         name: "description",
         content:
-          "Type what just happened — work, exes, family, strangers. Shutap turns it into a set of joke cards, every comedic angle. pseudonymous.",
+          "type whatever just happened to you — family, work, exes, strangers. shutap writes it into a set of joke cards, every angle on the same mess. pseudonymous.",
       },
       { name: "author", content: "Shutap" },
       { property: "og:site_name", content: "Shutap" },
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://shutap.com" },
-      { property: "og:title", content: "Shutap — Joke Cards from Whatever Just Happened" },
+      { property: "og:title", content: "SHUTAP. Joke about it." },
       {
         property: "og:description",
         content:
-          "Type what just happened — work, exes, family, strangers. Shutap turns it into a set of joke cards, every comedic angle. pseudonymous.",
+          "type the thing that's living in your head. shutap turns it into a set. pseudonymous.",
       },
       ...ogImageMeta(),
-      { name: "twitter:title", content: "Shutap — Joke Cards from Whatever Just Happened" },
+      { name: "twitter:title", content: "SHUTAP. Joke about it." },
       {
         name: "twitter:description",
-        content:
-          "Type what just happened — work, exes, family, strangers. Shutap turns it into a set of joke cards, every comedic angle. pseudonymous.",
+        content: "life's a bitch. so make fun of it.",
       },
     ],
     links: [
