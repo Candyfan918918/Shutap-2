@@ -95,7 +95,7 @@ export function UpgradeSheet({
         </div>
 
         <div style={{ fontFamily: SORA, fontWeight: 700, fontSize: 15, color: '#f7e8f0' }}>
-          {price} / month · cancel whenever
+          {price} / month · billed today, no trial · cancel whenever
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

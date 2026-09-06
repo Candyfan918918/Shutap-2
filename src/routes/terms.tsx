@@ -134,11 +134,11 @@ function TermsPage() {
 
       <h3 id="refunds">10. Subscriptions, billing &amp; refunds.</h3>
       <p>
-        Membership features (Section 9, including the &ldquo;Mirror&rdquo;) require a paid subscription. Paid subscriptions
-        begin with a free trial; your payment method is collected up front and{' '}
-        <b>the first charge happens automatically when the trial ends</b> unless you cancel first.
+        Membership features (Section 9, including the &ldquo;Mirror&rdquo;) require a paid
+        subscription: <b>US$7.99 per month or US$49.99 per year</b>, plus any applicable taxes.{' '}
+        <b>There is no free trial; the first period is charged when you subscribe.</b>{' '}
         Subscriptions renew automatically each billing period at the price shown at checkout (plus
-        any applicable taxes) until cancelled. You can cancel anytime from your profile or the
+        any applicable taxes) until cancelled. We email a receipt for every charge. You can cancel anytime from your profile or the
         billing portal; cancellation takes effect at the end of the current billing period, and you
         keep access until then. <b>Payments already made — for the current or past periods — are
         not refunded</b>, except where a refund is required by applicable law. Cancelling returns

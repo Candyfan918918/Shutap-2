@@ -64,8 +64,8 @@ export const createMirrorCheckout = createServerFn({ method: 'POST' })
         automatic_tax: { enabled: true },
         customer_update: { name: 'auto', address: 'auto' },
         payment_method_collection: 'always',
+        // No free trial: the first period is charged at checkout.
         subscription_data: {
-          trial_period_days: 14,
           metadata: { userId },
         },
         metadata: { userId },

@@ -278,12 +278,12 @@ export function SubscribePage() {
               </div>
             </div>
 
-            {/* trial reassurance */}
+            {/* billing, plainly */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginBottom: 28, ...fadeUp(0.14) }}>
               {[
-                `14 days free — first charge ${usd(plan.amount)} on day 14, or nothing if you cancel`,
-                'we email you before the trial ends — no surprises',
-                'cancel anytime from your profile',
+                `${usd(plan.amount)} charged today, then every ${plan.interval} — no free trial`,
+                'we email a receipt for every charge — no surprises',
+                'cancel anytime from your profile; access runs to the end of the period',
               ].map((line) => (
                 <div key={line} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <CheckGlyph />
@@ -409,7 +409,7 @@ export function SubscribeReturnPage() {
     : 'no checkout session found.'
   const body = state === 'ok'
     ? (trialing
-        ? 'your 14-day free trial has started — the whole portrait is yours.'
+        ? 'your trial is running — the whole portrait is yours.'
         : 'your subscription is active — the whole portrait is yours.')
     : state === 'checking' ? 'one moment while stripe finalizes.'
     : state === 'incomplete' ? 'if you completed payment, it should appear on your profile within a minute. otherwise, try again.'
