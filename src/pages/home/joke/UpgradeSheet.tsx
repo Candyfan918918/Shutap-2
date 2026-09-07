@@ -97,7 +97,7 @@ export function UpgradeSheet({
         </div>
 
         <div style={{ fontFamily: SORA, fontWeight: 700, fontSize: 15, color: '#f7e8f0' }}>
-          {price} / month · billed today, no trial · cancel whenever
+          {price} · billed today, no trial · cancel whenever
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -110,7 +110,7 @@ export function UpgradeSheet({
         </div>
 
         <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.55, color: '#9e7a8c', textAlign: 'center' }}>
-          renews monthly until you cancel; cancel anytime and keep access to the end of the period. payments already made are not refunded.
+          renews each period until you cancel; cancel anytime and keep access to the end of the period. payments already made are not refunded.
           the cards are ai-written jokes, not advice — a membership buys pixels and room, never relief.{' '}
           <a href="/terms#plans" target="_blank" rel="noreferrer" style={LINK}>plans &amp; limits</a> ·{' '}
           <a href="/terms#refunds" target="_blank" rel="noreferrer" style={LINK}>billing &amp; refunds</a> ·{' '}

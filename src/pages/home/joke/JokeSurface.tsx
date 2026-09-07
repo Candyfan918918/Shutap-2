@@ -80,7 +80,9 @@ type Pending =
 
 type SetState = { id: string; situation: string; archetype: string }
 
-const PRICE = usd(PLAN_TO_PRICE.monthly.amount)
+/** The price line the upgrade sheet quotes: annual first, monthly as the
+ *  alternative — the same order the subscribe page leads with. */
+const PRICE = `${usd(PLAN_TO_PRICE.annual.amount)} / year (${usd(PLAN_TO_PRICE.annual.amount / 12)}/mo) · or ${usd(PLAN_TO_PRICE.monthly.amount)} monthly`
 
 export function JokeSurface() {
   const navigate = useNavigate()
@@ -236,7 +238,7 @@ export function JokeSurface() {
     else if (p.type === 'saveSet') void doSaveSet()
     else if (p.type === 'share') void openShare(at(p.position))
     else if (p.type === 'post') void doPost(at(p.position))
-    else if (p.type === 'checkout') void navigate({ to: '/subscribe', search: { plan: 'monthly' } as never })
+    else if (p.type === 'checkout') void navigate({ to: '/subscribe', search: { plan: 'annual' } as never })
     else if (p.type === 'upgrade') { jokeTrack('upgrade_shown', tier, { after: 'limit' }); setUpgradeOpen(true) }
     else if (p.type === 'flip') say('the other two are yours now — flip them.')
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -596,9 +598,10 @@ export function JokeSurface() {
       raiseGate('checkout', { type: 'checkout' })
       return
     }
-    jokeTrack('checkout_started', tier, { lookup_key: 'mirror_monthly' })
+    // Annual is the plan checkout opens on; monthly is a tap away on the page.
+    jokeTrack('checkout_started', tier, { lookup_key: 'mirror_annual' })
     setUpgradeOpen(false)
-    void navigate({ to: '/subscribe', search: { plan: 'monthly' } as never })
+    void navigate({ to: '/subscribe', search: { plan: 'annual' } as never })
   }
 
   // ─────────────────────────── derived copy ───────────────────────────
