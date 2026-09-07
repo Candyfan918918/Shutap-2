@@ -390,8 +390,11 @@ export const openJokeDeal = createServerFn({ method: 'POST' })
 export type WriteCardResult =
   | { ok: true; card: JokeCard; tier: JokeTier }
   /** `not_open` — the set was never charged, so nothing may be written for it.
-   *  `already_written` — this slot has had its one card; the deal is spent. */
-  | { ok: false; reason: 'not_found' | 'not_open' | 'already_written'; tier: JokeTier }
+   *  `already_written` — this slot has had its one card; the deal is spent.
+   *  `claim_failed` — the claim itself errored, so nothing was written and
+   *  nothing was spent. Distinct from the two above because it is a fault to
+   *  go and fix, not a rule the reader ran into. */
+  | { ok: false; reason: 'not_found' | 'not_open' | 'already_written' | 'claim_failed'; tier: JokeTier }
 
 export const writeJokeCard = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) =>
@@ -442,7 +445,7 @@ export const writeJokeCard = createServerFn({ method: 'POST' })
 
     // Claim the slot before generating. ON CONFLICT DO NOTHING returns no row
     // to whoever loses, so exactly one caller per slot ever reaches the model.
-    const { data: claimed } = await supabaseAdmin
+    const { data: claimed, error: claimError } = await supabaseAdmin
       .from('joke_deal_slots')
       .upsert({ set_id: set.id as string, position: data.position } as never, {
         onConflict: 'set_id,position',
@@ -450,6 +453,21 @@ export const writeJokeCard = createServerFn({ method: 'POST' })
       })
       .select('position')
       .maybeSingle()
+
+    // "No row" means the conflict fired and this slot is spent. An ERROR means
+    // the claim never happened at all — and the two must not collapse into one
+    // answer. They did once: with the table not yet migrated in, every claim
+    // errored, every card reported itself already written, and the deck came
+    // up empty with nothing anywhere saying why.
+    if (claimError) {
+      console.error('[joke-deal] slot claim failed', {
+        set_id: set.id,
+        position: data.position,
+        code: claimError.code,
+        message: claimError.message,
+      })
+      return { ok: false, reason: 'claim_failed', tier: id.tier }
+    }
     if (!claimed) return { ok: false, reason: 'already_written', tier: id.tier }
 
     // generateLine falls back to an authored line rather than failing, so a

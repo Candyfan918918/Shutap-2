@@ -437,6 +437,11 @@ export function JokeSurface() {
                   [...prev.filter((c) => c.position !== r.card.position), r.card]
                     .sort((a, b) => a.position - b.position),
                 )
+              } else {
+                // A card that refuses to be written leaves a hole in the deck.
+                // Say which one and why, or the only evidence is three backs
+                // that never turn over.
+                jokeTrack('card_write_failed', res.tier, { position, reason: r.reason })
               }
               return r
             })
