@@ -2,9 +2,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { MirrorPage } from '@/pages/Mirror'
 import { SITE_URL } from '@/lib/site'
 
-const TITLE = 'your set list — Shutap'
+const TITLE = 'your mirror reading — Shutap'
 const DESCRIPTION =
-  "every card you've flipped, and what keeps coming back. the mirror records what you've lived and reads it back to you."
+  "your most recent reading, and what keeps coming back. the mirror records what you've lived and reads it back to you."
 
 export const Route = createFileRoute('/mirror')({
   ssr: false,
