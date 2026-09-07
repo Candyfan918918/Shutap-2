@@ -8,7 +8,7 @@
  * paying is shown the members' offer after that — three situations a day,
  * clean exports, the mirror — stated as what they are. A paying member is at
  * the top of that ladder, so their copy is a reset time and nothing else. */
-import type { JokeTier, JokeUsage, LimitReason } from '@/lib/jokes/deck'
+import { ALIAS_OFFER, MEMBER_OFFER, type JokeTier, type JokeUsage, type LimitReason } from '@/lib/jokes/deck'
 import { Button, CompanionLine, Sheet, SORA, NEWS, INK, MUTED, FAINT, ACCENT } from './ui'
 
 export type LimitSheetReason = LimitReason | 'rate_limited'
@@ -38,13 +38,13 @@ function copy(tier: JokeTier, reason: LimitSheetReason, usage: JokeUsage | null)
   if (tier === 'guest') {
     return {
       lead: `that's the deck for today — ${sets}.`,
-      body: `it resets ${reset}. an alias — a fake one, thirty seconds — turns over all three cards of a situation and keeps them. members get three situations a day and save them with no mark.`,
+      body: `it resets ${reset}. ${ALIAS_OFFER.line} a fake name, thirty seconds. members get ${MEMBER_OFFER.line}`,
     }
   }
   if (tier === 'free') {
     return {
       lead: `that's the deck for today — ${sets}.`,
-      body: `it resets ${reset}. members get three situations a day, save them clean and four times bigger, and the mirror reads the patterns across all of it.`,
+      body: `it resets ${reset}. members get ${MEMBER_OFFER.line}`,
     }
   }
   return {
@@ -105,12 +105,12 @@ export function LimitSheet({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {!throttled && tier === 'guest' ? (
           <>
-            <Button onClick={onAlias} full>get my alias — it&apos;s free</Button>
-            <Button variant="secondary" onClick={onUpgrade} full>see what members get</Button>
+            <Button onClick={onAlias} full>{ALIAS_OFFER.cta}</Button>
+            <Button variant="secondary" onClick={onUpgrade} full>{MEMBER_OFFER.cta}</Button>
           </>
         ) : null}
         {!throttled && tier === 'free' ? (
-          <Button onClick={onUpgrade} full>see clean cards</Button>
+          <Button onClick={onUpgrade} full>{MEMBER_OFFER.cta}</Button>
         ) : null}
         <Button variant="ghost" size="sm" onClick={onClose} full>
           {throttled ? 'okay' : tier === 'paying' ? 'okay — back tomorrow' : 'not now — keep reading'}

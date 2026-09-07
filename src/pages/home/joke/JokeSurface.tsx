@@ -28,7 +28,9 @@ import {
   exportJokeCards,
 } from '@/lib/jokes.functions'
 import {
+  ALIAS_OFFER,
   ARCHETYPE_LABEL,
+  MEMBER_OFFER,
   exportSpec,
   usageBlock,
   usageIsCurrent,
@@ -236,7 +238,7 @@ export function JokeSurface() {
     else if (p.type === 'post') void doPost(at(p.position))
     else if (p.type === 'checkout') void navigate({ to: '/subscribe', search: { plan: 'monthly' } as never })
     else if (p.type === 'upgrade') { jokeTrack('upgrade_shown', tier, { after: 'limit' }); setUpgradeOpen(true) }
-    else if (p.type === 'flip') say('the other two are yours now. turn them over.')
+    else if (p.type === 'flip') say('the other two are yours now — flip them.')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeAt])
 
@@ -729,7 +731,7 @@ export function JokeSurface() {
               <ol style={{ margin: 0, padding: '12px 18px', listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7, background: 'rgba(127,119,221,.06)', border: '1px solid rgba(11,8,15,.07)', borderRadius: 18, fontFamily: NEWS, fontStyle: 'italic', fontSize: 14.5, lineHeight: 1.5, color: '#443c42', textAlign: 'left' }}>
                 <li><span style={{ color: '#8e1c4c' }}>i.</span> type what happened — names get scrubbed before anything saves.</li>
                 <li><span style={{ color: '#8e1c4c' }}>ii.</span> i write you a set of three, face-down: a take, a clapback, a roast. you turn over one.</li>
-                <li><span style={{ color: '#8e1c4c' }}>iii.</span> one situation a day is free. a guest turns over one card; an alias turns over all three and keeps them. members get three situations a day, and the mirror.</li>
+                <li><span style={{ color: '#8e1c4c' }}>iii.</span> one situation a day is free. a guest flips one card; an alias flips all three and keeps them. members get three situations a day, and the mirror reading.</li>
                 <li style={{ fontFamily: SORA, fontStyle: 'normal', fontSize: 12.5 }}>
                   <a href="/how-it-works" target="_blank" rel="noreferrer" style={{ color: '#8e1c4c', textDecoration: 'underline', textUnderlineOffset: 3 }}>the full explanation →</a>
                 </li>
@@ -875,8 +877,8 @@ export function JokeSurface() {
             {deck.revealedSlots.length > 0 && tier === 'guest' ? (
               <PaywallBlock
                 pulsing={deck.pulsing}
-                line="you turned one over. the other two are written and waiting — an alias turns them over, and keeps all three."
-                cta="get my alias — it's free"
+                line={`you flipped one. the other two are written and waiting — ${ALIAS_OFFER.line}`}
+                cta={ALIAS_OFFER.cta}
                 onCta={() => raiseGate('flip', { type: 'flip' })}
               />
             ) : null}
@@ -919,10 +921,10 @@ export function JokeSurface() {
                     ) : (
                       <>
                         <CompanionLine>
-                          it&apos;s yours. want it without my little mark on the corner — and four times bigger, for printing on something petty?
+                          it&apos;s yours. members get {MEMBER_OFFER.line}
                         </CompanionLine>
                         <Button onClick={() => { jokeTrack('upgrade_shown', tier, { after: 'save' }); setUpgradeOpen(true) }} full>
-                          see clean cards
+                          {MEMBER_OFFER.cta}
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => setSaved(null)} full>this one&apos;s fine</Button>
                       </>
@@ -969,7 +971,7 @@ export function JokeSurface() {
                 <p style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 17, lineHeight: 1.55, color: '#4a3040', marginTop: 6 }}>
                   {tier === 'paying'
                     ? `cross-read, districts, depth, trend and signal mix — now with 🃏 joke in the mix, across ${list.length} ${list.length === 1 ? 'card' : 'cards'}.`
-                    : `the mirror reads your whole set list at once — which behaviour keeps showing up, and how the jokes changed as you did.`}
+                    : `members get three situations a day, every set kept clean, and the mirror reading your whole set list at once — which behaviour keeps showing up, and how the jokes changed as you did.`}
                 </p>
               </div>
               <Button
@@ -977,7 +979,7 @@ export function JokeSurface() {
                   ? document.getElementById('mirror')?.scrollIntoView({ behavior: 'smooth' })
                   : (jokeTrack('upgrade_shown', tier, { after: 'set_list' }), setUpgradeOpen(true)))}
               >
-                {tier === 'paying' ? 'open the mirror ✦' : 'see clean cards'}
+                {tier === 'paying' ? `${MEMBER_OFFER.cta} ✦` : MEMBER_OFFER.cta}
               </Button>
             </div>
           </div>

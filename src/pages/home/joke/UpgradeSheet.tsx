@@ -1,11 +1,13 @@
-// "clean cards" — the one upgrade screen, and the only paywall on this surface.
+// "open the mirror reading" — the one upgrade screen, and the only paywall on
+// this surface. The mirror is the headline; the joke-card room and pixels are
+// named right alongside it, so the offer is never only the mirror.
 //
 // It sells RESOLUTION, never relief. It arrives after a win (the save has
 // already happened, the card is already theirs) and never before one, it never
 // appears while a set is still being read, and it never appears at all for a
 // crisis. Declining it costs nothing: the cards you turned over stay yours.
 import type React from 'react'
-import { ALWAYS_FREE, MEMBER_BENEFITS, type JokeTier } from '@/lib/jokes/deck'
+import { ALWAYS_FREE, MEMBER_BENEFITS, MEMBER_OFFER, type JokeTier } from '@/lib/jokes/deck'
 import { EyeMark, ShutapWordmark } from '@/components/brand/EyeMark'
 import { Button, SORA, NEWS, INTER } from './ui'
 
@@ -56,14 +58,14 @@ export function UpgradeSheet({
       >
         <div>
           <h2 style={{ margin: 0, fontFamily: SORA, fontWeight: 800, fontSize: 'clamp(34px,7vw,52px)', lineHeight: 1.04, letterSpacing: '-.04em', color: '#f7e8f0' }}>
-            clean cards
+            three a day.
             <br />
-            <span style={{ color: '#e7548a' }}>no mark.</span>
+            every set kept clean.
             <br />
-            four times bigger.
+            <span style={{ color: '#e7548a' }}>the mirror reading.</span>
           </h2>
-          <p style={{ margin: '14px 0 0', fontFamily: NEWS, fontStyle: 'italic', fontSize: 19, lineHeight: 1.5, color: '#c4a0b2', maxWidth: '34ch' }}>
-            three situations a day, yours properly, and the mirror reading all of it.
+          <p style={{ margin: '14px 0 0', fontFamily: NEWS, fontStyle: 'italic', fontSize: 19, lineHeight: 1.5, color: '#c4a0b2', maxWidth: '36ch' }}>
+            {MEMBER_OFFER.line}
           </p>
         </div>
 
@@ -100,7 +102,7 @@ export function UpgradeSheet({
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <Button onClick={onCheckout} full>
-            {tier === 'guest' ? 'get my alias, then go clean' : 'go clean'}
+            {tier === 'guest' ? `get my alias, then ${MEMBER_OFFER.cta}` : MEMBER_OFFER.cta}
           </Button>
           <Button variant="ghost" size="sm" onClick={onClose} full style={{ color: '#9e7a8c' }}>
             not now — keep the free cards

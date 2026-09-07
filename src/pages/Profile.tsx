@@ -626,7 +626,7 @@ function BillingCard({
           you're on the free tier.
         </div>
         <div>
-          <button onClick={() => navigate('/subscribe?plan=annual')} style={btn('#c1216b')}>open the full mirror →</button>
+          <button onClick={() => navigate('/subscribe?plan=annual')} style={btn('#c1216b')}>open the mirror reading →</button>
         </div>
       </div>
     )
@@ -827,7 +827,7 @@ function MirrorMemory({
           onClick={() => navigate('/mirror')}
           style={{ padding: '6px 12px', borderRadius: 999, border: '.5px solid #ff7eb340', background: '#ff7eb310', color: '#ff7eb3', fontFamily: 'Sora,sans-serif', fontWeight: 600, fontSize: 12, letterSpacing: '.02em', cursor: 'pointer' }}
         >
-          open the full mirror →
+          open the mirror reading →
         </button>
       </div>
     </div>

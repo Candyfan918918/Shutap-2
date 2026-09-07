@@ -1414,7 +1414,7 @@ export function MirrorPage() {
                     fontSize: 13, cursor: 'pointer', letterSpacing: '.05em',
                     boxShadow: '0 12px 28px -12px rgba(231,84,138,.6)',
                   }}
-                >unlock the mirror →</button>
+                >open the mirror reading →</button>
                 <div style={{
                   marginTop: 10, fontFamily: "'Newsreader',serif", fontStyle: 'italic',
                   color: MUTED, fontSize: 13,

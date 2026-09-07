@@ -165,15 +165,34 @@ export const MEMBER_BENEFITS: { line: string; detail: string }[] = [
   { line: 'exports with no shutap mark', detail: 'free cards carry a small mark in the corner; yours are clean.' },
   { line: '2160×3840 — print-size', detail: 'four times the pixels of a free export.' },
   { line: 'save all three as a set', detail: 'one tap, one zip, the whole situation.' },
-  { line: 'the mirror — what your situations keep saying', detail: 'everything you keep goes into a private record it reads patterns back from.' },
+  { line: 'the mirror reading — what your situations keep saying', detail: 'everything you keep goes into a private record it reads patterns back from.' },
 ]
 
 /** What never costs anything, at any tier. */
 export const ALWAYS_FREE = [
   'typing what happened, with identifying details scrubbed first',
-  'one situation a day — one card of it as a guest, all three with an alias',
-  'reading the cards you turned over, for as long as you like',
+  'one situation a day — flip one card as a guest, all three with an alias',
+  'reading the cards you flipped, for as long as you like',
 ]
+
+/* ─────────────────────────── the two asks ───────────────────────────
+   Every button and every offer line on this surface says one of these two
+   things, in these words. A guest is asked for an alias, and what the alias
+   buys is FLIPPING ALL THREE. An alias is asked for a membership, and what
+   the membership buys is THE MIRROR READING — with the joke-card room and
+   pixels named alongside it, so the offer is never only the mirror. */
+
+export const ALIAS_OFFER = {
+  cta: 'flip all three — free',
+  /** "an alias flips all three, and keeps them." */
+  line: 'an alias flips all three, and keeps them.',
+}
+
+export const MEMBER_OFFER = {
+  cta: 'open the mirror reading',
+  /** what a membership buys, in one breath — cards first, then the mirror */
+  line: 'three situations a day, every set kept clean — no mark, print-size, the three in one tap — and the mirror reading the patterns across all of it.',
+}
 
 /* ─────────────────────── the daily budget, as the client sees it ───────────────────────
    Resolved and enforced on the server; the browser only carries a copy so it

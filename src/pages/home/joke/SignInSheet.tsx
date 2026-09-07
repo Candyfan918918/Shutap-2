@@ -18,8 +18,8 @@ const SHEET_LEAD: Record<string, string> = {
   share: 'cards need a name. a fake one.',
   post: 'rooms need a name too — a fake one, same as the cards.',
   keep: 'cards need a name. a fake one.',
-  checkout: 'an alias first, then the clean ones.',
-  limit: 'an alias turns over all three. members get more.',
+  checkout: 'an alias first, then the mirror reading.',
+  limit: 'an alias flips all three. members get the mirror reading.',
   flip: 'the other two need a name. a fake one.',
 }
 
@@ -28,9 +28,9 @@ const SHEET_BODY: Record<string, string> = {
   share: "reading is free forever. an alias is only so your set belongs to someone — 30 seconds, no real name, no password.",
   post: 'nobody in a room ever sees who you are. the alias is the name they know you by, and it is not yours.',
   keep: "reading is free forever. an alias is only so your set belongs to someone — 30 seconds, no real name, no password.",
-  checkout: 'the clean cards land in the same place your alias does. one link, then both.',
-  limit: "an alias turns over all three cards of a situation and keeps them, and it is the door to the members' deck — three situations a day. a fake name — 30 seconds, no real name, no password.",
-  flip: "they're already written. an alias turns them over and keeps all three in your set list — 30 seconds, no real name, no password.",
+  checkout: 'the mirror reading lands in the same place your alias does. one link, then both.',
+  limit: "an alias flips all three cards of a situation and keeps them, and it is the door to the members' deck — three situations a day, every set kept clean, the mirror reading. a fake name — 30 seconds, no real name, no password.",
+  flip: "they're already written. an alias flips them and keeps all three in your set list — 30 seconds, no real name, no password.",
 }
 
 export function SignInSheet({
