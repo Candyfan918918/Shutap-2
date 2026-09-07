@@ -123,6 +123,14 @@ export async function resolveJokeIdentity(anonSessionId: string | null): Promise
  * use. Guests have no stored row, so they are always on UTC.
  */
 export async function resolveDay(admin: SupabaseAdmin, userId: string | null): Promise<string> {
+  return (await resolveDayInfo(admin, userId)).day
+}
+
+/** The day, the timezone it was read in, and the instant it rolls over. */
+export async function resolveDayInfo(
+  admin: SupabaseAdmin,
+  userId: string | null,
+): Promise<{ day: string; tz: string; resetsAt: string }> {
   let tz = 'UTC'
   if (userId) {
     try {
@@ -140,7 +148,32 @@ export async function resolveDay(admin: SupabaseAdmin, userId: string | null): P
       }
     } catch { /* UTC */ }
   }
-  return dayIn(tz)
+  const day = dayIn(tz)
+  return { day, tz, resetsAt: nextResetAt(day, tz) }
+}
+
+/** Wall-clock offset of `tz` at `date`, in ms. */
+function tzOffsetMs(date: Date, tz: string): number {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(date)
+    const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0)
+    const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'))
+    return asUtc - Math.floor(date.getTime() / 1000) * 1000
+  } catch {
+    return 0
+  }
+}
+
+/** Midnight after `day` (YYYY-MM-DD) in `tz`, as an ISO instant. */
+export function nextResetAt(day: string, tz: string): string {
+  const [y, m, d] = day.split('-').map(Number)
+  if (!y || !m || !d) return new Date(Date.now() + 24 * 3600 * 1000).toISOString()
+  const naive = Date.UTC(y, m - 1, d + 1)
+  return new Date(naive - tzOffsetMs(new Date(naive), tz)).toISOString()
 }
 
 function dayIn(tz: string): string {

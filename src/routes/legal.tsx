@@ -6,15 +6,25 @@ import { SITE_URL } from "@/lib/site";
 const URL = `${SITE_URL}/legal`;
 const TITLE = "Legal & policies — Shutap";
 const DESCRIPTION =
-  "Hub for Shutap's legal and policy documents: terms, privacy, community guidelines, safety, AI disclosure, medical / legal disclaimer, and FAQ.";
+  "Hub for Shutap's legal and policy documents: how it works, FAQ, terms (with plans and daily limits), privacy, community guidelines, safety, AI disclosure, and the medical / legal disclaimer.";
 
 type Item = { href: string; label: string; sub: string };
 
 const ITEMS: Item[] = [
   {
+    href: "/how-it-works",
+    label: "How it works",
+    sub: "you type it, shutap writes three cards, you turn over one. what\u2019s free, what a membership buys, and how the daily deck works.",
+  },
+  {
+    href: "/faq",
+    label: "FAQ",
+    sub: "how many a day, what gets kept when you sign in, what the mirror is, how to delete everything.",
+  },
+  {
     href: "/terms",
     label: "Terms of Service",
-    sub: "what shutap is and isn\u2019t, your content, AI use, eligibility (18+), and your rights.",
+    sub: "what shutap is and isn\u2019t, daily limits and what a membership buys, your content and the cards, AI use, billing, eligibility (18+).",
   },
   {
     href: "/privacy",

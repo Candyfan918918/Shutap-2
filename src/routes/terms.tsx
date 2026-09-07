@@ -6,7 +6,7 @@ import { SITE_URL } from '@/lib/site'
 const URL = `${SITE_URL}/terms`
 const TITLE = 'Terms of Service — Shutap'
 const DESCRIPTION =
-  'Terms for using Shutap, a pseudonymous peer-support community with an AI companion — what Shutap is and isn\u2019t, your content, AI use, and liability.'
+  'Terms for using Shutap, a pseudonymous entertainment service that writes joke cards from what you type — what Shutap is and isn\u2019t, daily limits, what a membership buys, your content, AI use, and liability.'
 
 export const Route = createFileRoute('/terms')({
   head: () => ({
@@ -31,12 +31,15 @@ function TermsPage() {
     <DocLayout
       active="/terms"
       title="Terms of Service"
-      subline="Effective: July 1, 2026 · Operator: Shutap"
+      subline="Effective: September 6, 2026 · Operator: Shutap"
     >
       <h3>1. What Shutap is — and is not.</h3>
       <p>
-        Shutap is a pseudonymous peer-support and journaling community with an AI companion. It is
-        a space to vent, to feel less alone, and to record what happened next.{' '}
+        Shutap is a pseudonymous entertainment service. You type a situation, identifying details
+        are removed, and an AI writes you a set of three humorous &ldquo;joke cards&rdquo; about
+        that situation. Signed-in users may keep the cards they turn over, share them, post them to
+        rooms, and (as members) have a private record of them read back by the
+        &ldquo;Mirror.&rdquo;{' '}
         <b>Shutap is not a healthcare, medical, mental-health, crisis, or legal service.</b> Using
         Shutap does not create a therapist–patient, physician–patient, attorney–client, or any
         other professional relationship. Nothing on Shutap — including anything our AI companion or
@@ -65,12 +68,15 @@ function TermsPage() {
         account.
       </p>
 
-      <h3>5. Your content.</h3>
+      <h3>5. Your content, and the cards.</h3>
       <p>
-        You own what you write. By posting, you grant us a non-exclusive, worldwide, royalty-free
-        license to host, store, de-identify, display (where you choose to make content public), and
-        use de-identified content to operate and improve the service, including aggregated,
-        de-identified insights. You represent that your content is yours to share and does not
+        You own what you write. By submitting a situation, you grant us a non-exclusive, worldwide,
+        royalty-free license to host, store, de-identify, display (where you choose to make content
+        public), and use de-identified content to operate and improve the service, including
+        aggregated, de-identified insights. The cards are generated for you from your situation;
+        you may keep, save, share and post the cards you turn over for personal, non-commercial
+        use, with or without the shutap mark according to your plan (Section 9). Cards you leave
+        face down are not stored and are not yours to claim later. You represent that your content is yours to share and does not
         violate anyone&rsquo;s rights.{' '}
         <b>
           Do not post other people&rsquo;s private or identifying information; do not post unlawful,
@@ -81,8 +87,8 @@ function TermsPage() {
 
       <h3>6. AI-generated content.</h3>
       <p>
-        Shutap&rsquo;s companion and Mirror are powered by artificial intelligence. AI responses
-        are generated automatically,{' '}
+        Shutap&rsquo;s cards, companion and Mirror are powered by artificial intelligence. Cards
+        and responses are generated automatically,{' '}
         <b>may be inaccurate, incomplete, or inappropriate, and must not be relied upon</b> for any
         decision. They are for reflection and support only, are provided &ldquo;as is,&rdquo; and
         are not the advice of any professional. You use AI features at your own discretion and risk.
@@ -104,27 +110,52 @@ function TermsPage() {
         removal of content about them.
       </p>
 
-      <h3 id="refunds">9. Subscriptions, billing &amp; refunds.</h3>
+      <h3 id="plans">9. Free use, daily limits, and what a membership buys.</h3>
       <p>
-        Some features (the &ldquo;Mirror&rdquo;) require a paid subscription. Paid subscriptions
-        begin with a free trial; your payment method is collected up front and{' '}
-        <b>the first charge happens automatically when the trial ends</b> unless you cancel first.
-        Subscriptions renew automatically each billing period at the price shown at checkout (plus
-        any applicable taxes) until cancelled. You can cancel anytime from your profile or the
-        billing portal; cancellation takes effect at the end of the current billing period, and you
-        keep access until then. <b>Payments already made — for the current or past periods — are
-        not refunded</b>, except where a refund is required by applicable law. Venting, scanning,
-        and being heard remain free.
+        <b>Free, always:</b> typing one situation a day, and turning over one of its three cards.
+        A signed-in free alias also keeps the card it turned over, and may save it (1080&times;1920,
+        with a small shutap mark), share it, and post it to a room. Guests keep nothing until they
+        choose an alias, at which point the card they had turned over comes with them.
+      </p>
+      <p>
+        <b>Membership:</b> a paid subscription adds three situations a day instead of one; all three
+        cards of every set turned over; exports with no mark at 2160&times;3840; the whole set saved
+        in one tap; and the Mirror. A membership buys room and pixels. It does not buy advice,
+        diagnosis, treatment, or relief, and it does not change what the jokes are.
+      </p>
+      <p>
+        <b>Limits:</b> daily allowances reset once a day in the timezone stored on your account
+        (UTC for guests). When a day&rsquo;s allowance is spent, no set is written and nothing is
+        charged against it. Allowances are a cost control, not a promise: we may change, reduce, or
+        suspend them, including per-network rate limits, to keep the service running, and we may
+        refuse to write a set for any situation that our safety systems flag. A card that was
+        generated is not refunded to the allowance if you choose not to turn it over.
       </p>
 
-      <h3>10. Assumption of risk.</h3>
+      <h3 id="refunds">10. Subscriptions, billing &amp; refunds.</h3>
       <p>
-        Shutap involves user-generated emotional content and AI-generated responses. You understand
-        and accept that such content may be upsetting, inaccurate, or unhelpful, and you use the
+        Membership features (Section 9, including the &ldquo;Mirror&rdquo;) require a paid
+        subscription: <b>US$7.99 per month or US$49.99 per year</b>, plus any applicable taxes.{' '}
+        <b>There is no free trial; the first period is charged when you subscribe.</b>{' '}
+        Subscriptions renew automatically each billing period at the price shown at checkout (plus
+        any applicable taxes) until cancelled. We email a receipt for every charge. You can cancel anytime from your profile or the
+        billing portal; cancellation takes effect at the end of the current billing period, and you
+        keep access until then. <b>Payments already made — for the current or past periods — are
+        not refunded</b>, except where a refund is required by applicable law. Cancelling returns
+        you to the free allowance (one situation a day, one card) at the end of the period; the
+        cards you kept stay in your set list. Typing one situation a day and turning over one card
+        remain free.
+      </p>
+
+      <h3>11. Assumption of risk.</h3>
+      <p>
+        Shutap involves user-generated emotional content and AI-generated jokes and responses. You
+        understand and accept that such content may be upsetting, inaccurate, unfunny, or unhelpful,
+        that a joke about your situation is still a joke about your situation, and you use the
         service at your own risk.
       </p>
 
-      <h3>11. Disclaimers.</h3>
+      <h3>12. Disclaimers.</h3>
       <p>
         The service is provided &ldquo;as is&rdquo; and &ldquo;as available,&rdquo; without
         warranties of any kind, express or implied, including fitness for a particular purpose and
@@ -132,7 +163,7 @@ function TermsPage() {
         needs.
       </p>
 
-      <h3>12. Limitation of liability.</h3>
+      <h3>13. Limitation of liability.</h3>
       <p>
         To the maximum extent permitted by law, Shutap and its operators will not be liable for any
         indirect, incidental, special, consequential, or punitive damages, or for any reliance on
@@ -140,16 +171,16 @@ function TermsPage() {
         amounts you paid us in the past 12 months or <b>US$100</b>.
       </p>
 
-      <h3>13. Indemnification.</h3>
+      <h3>14. Indemnification.</h3>
       <p>
         You agree to indemnify Shutap against claims arising from your content or your violation of
         these terms.
       </p>
 
-      <h3>14. Termination.</h3>
+      <h3>15. Termination.</h3>
       <p>You may delete your account anytime. We may suspend or terminate access for violations.</p>
 
-      <h3>15. Dispute resolution &amp; governing law.</h3>
+      <h3>16. Dispute resolution &amp; governing law.</h3>
       <p>
         Before filing any claim, you agree to first contact us at legal@shutap.com and try to
         resolve it informally for at least 30 days. Any dispute that cannot be resolved that way
@@ -161,13 +192,13 @@ function TermsPage() {
         arbitration is the state or federal courts located in Delaware.
       </p>
 
-      <h3>16. Changes.</h3>
+      <h3>17. Changes.</h3>
       <p>
         We may update these terms; material changes will be notified and re-accepted, with a new
         version stamp.
       </p>
 
-      <h3>17. Contact.</h3>
+      <h3>18. Contact.</h3>
       <p>legal@shutap.com.</p>
 
     </DocLayout>

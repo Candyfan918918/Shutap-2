@@ -304,7 +304,7 @@ changed your mind? resume anytime: ${v.resume_url ?? 'https://shutap.com/subscri
     htmlDesign: mirrorTrialEndingHtml,
     buildBodyText: (v) => `${g(v)}
 
-we promised to tell you before anything is charged — this is that email. your 14-day free trial ends ${v.trial_end ?? 'soon'}. if the mirror's been useful, do nothing — your ${v.plan_interval ?? ''} plan (${v.amount ?? ''} + tax where it applies) starts then. not for you? cancel from your profile before then and you won't be charged a cent.
+we promised to tell you before anything is charged — this is that email. your free trial ends ${v.trial_end ?? 'soon'}. if the mirror's been useful, do nothing — your ${v.plan_interval ?? ''} plan (${v.amount ?? ''} + tax where it applies) starts then. not for you? cancel from your profile before then and you won't be charged a cent.
 
 open the mirror: ${v.deep_link ?? 'https://shutap.com/mirror'}
 manage or cancel: ${v.manage_url ?? 'https://shutap.com/profile'}`,

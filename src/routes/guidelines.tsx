@@ -50,6 +50,15 @@ function GuidelinesPage() {
             try.)
           </li>
           <li>no harassment, threats, hate, or cruelty aimed at people.</li>
+          <li>
+            <b>the joke goes at the situation, never at a person.</b> a card you share carries your
+            scrubbed situation with it — don&rsquo;t put the names back in the caption, and
+            don&rsquo;t aim a card at someone who can be identified.
+          </li>
+          <li>
+            one situation a day is the free deal (members get three). don&rsquo;t mint sessions or
+            accounts to get around it — the deck is a cost, not a score.
+          </li>
           <li>nothing illegal — and absolutely nothing sexual involving minors.</li>
           <li>don&rsquo;t impersonate, spam, or scrape.</li>
           <li>don&rsquo;t use shutap to sell services or give professional advice to others.</li>

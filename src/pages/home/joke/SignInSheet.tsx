@@ -6,9 +6,11 @@
 // a route change, so nobody loses the cards they were reading.
 import { useState } from 'react'
 import { supabase } from '@/integrations/supabase/client'
+import { sendMagicLink } from '@/lib/magic-link.functions'
+import { LEGAL_VERSION } from '@/lib/seo/legal'
 import { Button, Sheet, CompanionLine, SORA, NEWS, MUTED, ACCENT_SOFT, INK, FAINT } from './ui'
 
-const TERMS_VERSION = '2026-09-04'
+const TERMS_VERSION = LEGAL_VERSION.terms
 
 /** Why the gate went up — the companion says the true reason, not a generic one. */
 const SHEET_LEAD: Record<string, string> = {
@@ -17,6 +19,7 @@ const SHEET_LEAD: Record<string, string> = {
   post: 'rooms need a name too — a fake one, same as the cards.',
   keep: 'cards need a name. a fake one.',
   checkout: 'an alias first, then the clean ones.',
+  limit: 'an alias keeps your cards. members get more.',
 }
 
 const SHEET_BODY: Record<string, string> = {
@@ -25,6 +28,7 @@ const SHEET_BODY: Record<string, string> = {
   post: 'nobody in a room ever sees who you are. the alias is the name they know you by, and it is not yours.',
   keep: "reading is free forever. an alias is only so your set belongs to someone — 30 seconds, no real name, no password.",
   checkout: 'the clean cards land in the same place your alias does. one link, then both.',
+  limit: "an alias keeps the card you turn over, and it is the door to the members' deck — three situations a day, all three cards. a fake name — 30 seconds, no real name, no password.",
 }
 
 export function SignInSheet({
@@ -57,11 +61,19 @@ export function SignInSheet({
       try {
         localStorage.setItem('shutap_terms', JSON.stringify({ version: TERMS_VERSION, at: new Date().toISOString() }))
       } catch { /* noop */ }
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: window.location.href, shouldCreateUser: true },
-      })
-      if (error) { setErr('that did not send. try again in a moment?'); return }
+      const address = email.trim()
+      const redirectTo = window.location.href
+      // The link goes out in shutap's own design from hello@shutap.com. If that
+      // path is unavailable, Supabase's stock email still gets the alias made.
+      const branded = await sendMagicLink({ data: { email: address, redirectTo } }).catch(() => null)
+      if (!branded?.ok) {
+        if (branded?.error === 'rate_limited') { setErr('that is a lot of links. give the last one a minute?'); return }
+        const { error } = await supabase.auth.signInWithOtp({
+          email: address,
+          options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
+        })
+        if (error) { setErr('that did not send. try again in a moment?'); return }
+      }
       setSent(true)
     } finally {
       setBusy(false)
@@ -101,7 +113,12 @@ export function SignInSheet({
               onChange={(e) => setOk18(e.target.checked)}
               style={{ marginTop: 3, width: 17, height: 17, accentColor: '#8e1c4c', flex: 'none' }}
             />
-            <span>i&apos;m 18 or over, and i accept the terms and privacy notice.</span>
+            <span>
+              i&apos;m 18 or over, and i accept the{' '}
+              <a href="/terms" target="_blank" rel="noreferrer" style={{ color: MUTED, textDecoration: 'underline', textUnderlineOffset: 2 }}>terms</a>
+              {' '}and{' '}
+              <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: MUTED, textDecoration: 'underline', textUnderlineOffset: 2 }}>privacy notice</a>.
+            </span>
           </label>
           {err ? (
             <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 15, color: '#a8003f' }}>{err}</div>

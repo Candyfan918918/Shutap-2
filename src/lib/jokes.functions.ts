@@ -5,23 +5,38 @@
 //     the same three. READING THEM IS FREE AT EVERY TIER, guests included.
 //   · the only wall a guest hits is the alias gate, and it stands in front of
 //     SAVING and SHARING, never in front of reading.
-//   · money buys pixels and nothing else: no mark, print-size, the set in one
-//     tap. It never buys relief, and it never buys more jokes.
+//   · money buys pixels and room: no mark, print-size, the set in one tap,
+//     three situations a day with all three cards turned over. It never buys
+//     relief.
 //   · crisis overrides all of it — no cards, no gate, no paywall.
 //
 // Every rule that matters is enforced here, never in the browser:
 //   · identity + tier resolved from the bearer token and the subscriptions table
 //   · the daily generation counter incremented BEFORE any model call, so a
 //     crash mid-generation cannot hand out free generations
-//   · guest cards are returned but never written to joke_cards
+//   · guest cards are returned but never written to joke_cards; a free alias
+//     keeps only the card it turned over (see keepJokeCard) — the two it did
+//     not are never stored, so they cannot be read back later. Members turn
+//     over all three, so all three are written at the deal.
 //   · signing in merges today's counter instead of minting a fresh allowance
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { runScrub } from './agents/scrubber.functions'
 import { runClassifyCrisis } from './agents/guard.functions'
 import { classifyArchetype, dealSlots, generateLine } from './jokes/deck.server'
-import { resolveJokeIdentity, resolveDay, ipFlipLimit, ipSubjectKey } from './jokes/session.server'
-import { angleLabel, angleAccent, exportSpec, type JokeCard, type JokeTier } from './jokes/deck'
+import { resolveJokeIdentity, resolveDay, resolveDayInfo, ipFlipLimit, ipSubjectKey } from './jokes/session.server'
+import { LEGAL_VERSION } from './seo/legal'
+import {
+  DAILY_SETS,
+  angleLabel,
+  angleAccent,
+  exportSpec,
+  usageBlock,
+  type JokeCard,
+  type JokeTier,
+  type JokeUsage,
+  type LimitReason,
+} from './jokes/deck'
 import { renderCardSvg, cardFilename } from './jokes/card-art'
 
 const Ctx = {
@@ -41,22 +56,24 @@ type FlipRow = {
 }
 
 /* ── the daily generation budget ──
-   A cost guard, not a product tier. Free and paying share the same allowance
-   on purpose: money buys pixels, never jokes. Guests get less only because an
-   unauthenticated session is the cheapest thing on the internet to mint. */
+   Situations a day, and the three cards each one costs. A guest and a free
+   alias get one, and turn over one of its three cards — the alias buys
+   keeping and sharing, not room. Members get three, and (see flipsAllowed)
+   turn over all three cards of every one of them. The members' cap is
+   tunable with JOKE_DAILY_SETS / JOKE_DAILY_CARDS. */
 type Budget = { cards: number; sets: number }
 
 const DAILY: Record<JokeTier, Budget> = {
-  guest: { cards: 6, sets: 2 },
-  free: { cards: 18, sets: 6 },
-  paying: { cards: 18, sets: 6 },
+  guest: { cards: DAILY_SETS.guest * 3, sets: DAILY_SETS.guest },
+  free: { cards: DAILY_SETS.free * 3, sets: DAILY_SETS.free },
+  paying: { cards: DAILY_SETS.paying * 3, sets: DAILY_SETS.paying },
 }
 
 function budget(tier: JokeTier): Budget {
   const cards = Number(process.env['JOKE_DAILY_CARDS'] ?? '')
   const sets = Number(process.env['JOKE_DAILY_SETS'] ?? '')
   const base = DAILY[tier]
-  if (tier === 'guest') return base
+  if (tier !== 'paying') return base
   return {
     cards: Number.isFinite(cards) && cards > 0 ? Math.floor(cards) : base.cards,
     sets: Number.isFinite(sets) && sets > 0 ? Math.floor(sets) : base.sets,
@@ -71,6 +88,26 @@ async function readCounter(admin: any, subjectKey: string, day: string): Promise
     .eq('day', day)
     .maybeSingle()
   return (data as FlipRow | null) ?? { subject_key: subjectKey, day, flips_used: 0, sets_flipped: 0, set_ids: [] }
+}
+
+/** Today's counter against today's cap, in the shape the browser keeps. */
+function usageOf(tier: JokeTier, counter: FlipRow, resetsAt: string): JokeUsage {
+  const cap = budget(tier)
+  return {
+    cards_used: counter.flips_used,
+    cards_cap: cap.cards,
+    sets_used: counter.sets_flipped,
+    sets_cap: cap.sets,
+    resets_at: resetsAt,
+  }
+}
+
+/** Has the coarse per-network layer already been spent today? Read-only. */
+async function networkSpent(admin: any, day: string): Promise<boolean> {
+  const ipKey = ipSubjectKey()
+  if (!ipKey) return false
+  const row = await readCounter(admin, ipKey, day)
+  return row.flips_used >= ipFlipLimit()
 }
 
 /** Charge the counter BEFORE generating, so a crash cannot refund itself. */
@@ -153,8 +190,12 @@ async function loadOwnedSet(
 
 export type JokeEntryResult =
   | { crisis: true }
+  /** Today's budget is spent. Nothing was scrubbed, classified, stored or
+   *  written — the spill never left the composer. */
+  | { crisis: false; limited: true; reason: LimitReason | 'rate_limited'; tier: JokeTier; usage: JokeUsage }
   | {
       crisis: false
+      limited: false
       set_id: string
       clean_text: string
       archetype: string
@@ -170,6 +211,18 @@ export const submitJokeEntry = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<JokeEntryResult> => {
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
     const id = await resolveJokeIdentity(data.anon_session_id ?? null)
+
+    // budget first — before the scrubber, the crisis classifier or a row.
+    // A spent counter is answered from the counter alone; no model is asked
+    // to write cards that the deal would only refuse.
+    const { day, resetsAt } = await resolveDayInfo(supabaseAdmin, id.userId)
+    const counter = await readCounter(supabaseAdmin, id.subjectKey, day)
+    const usage = usageOf(id.tier, counter, resetsAt)
+    const blocked = usageBlock(usage)
+    if (blocked) return { crisis: false, limited: true, reason: blocked, tier: id.tier, usage }
+    if (await networkSpent(supabaseAdmin, day)) {
+      return { crisis: false, limited: true, reason: 'rate_limited', tier: id.tier, usage }
+    }
 
     // scrub first — the raw text is never stored
     const scrubbed = await runScrub(data.raw)
@@ -207,6 +260,7 @@ export const submitJokeEntry = createServerFn({ method: 'POST' })
 
     return {
       crisis: false,
+      limited: false,
       set_id: row.id as string,
       clean_text: clean,
       archetype,
@@ -219,16 +273,16 @@ export const submitJokeEntry = createServerFn({ method: 'POST' })
 // ───────────────────── 2 · deal the three cards ─────────────────────
 
 export type DealResult =
-  | { ok: true; cards: JokeCard[]; tier: JokeTier; cards_used: number; sets_used: number }
-  | { ok: false; reason: 'not_found'; tier: JokeTier }
-  | { ok: false; reason: 'daily_cards' | 'daily_sets' | 'rate_limited'; tier: JokeTier }
+  | { ok: true; cards: JokeCard[]; tier: JokeTier; cards_used: number; sets_used: number; usage: JokeUsage }
+  | { ok: false; reason: 'not_found'; tier: JokeTier; usage?: JokeUsage }
+  | { ok: false; reason: 'daily_cards' | 'daily_sets' | 'rate_limited'; tier: JokeTier; usage: JokeUsage }
 
 export const dealJokeCards = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ set_id: z.string().uuid(), ...Ctx }).parse(d))
   .handler(async ({ data }): Promise<DealResult> => {
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
     const id = await resolveJokeIdentity(data.anon_session_id ?? null)
-    const day = await resolveDay(supabaseAdmin, id.userId)
+    const { day, resetsAt } = await resolveDayInfo(supabaseAdmin, id.userId)
 
     const set = await loadOwnedSet(supabaseAdmin, data.set_id, id.userId, data.anon_session_id ?? null)
     if (!set) return { ok: false, reason: 'not_found', tier: id.tier }
@@ -237,8 +291,9 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
     if (angles.length !== 3) return { ok: false, reason: 'not_found', tier: id.tier }
 
     // Already dealt? Hand the same three back. A retry, a refresh or a double
-    // tap must never cost a second deal.
-    if (id.userId) {
+    // tap must never cost a second deal. Only members have all three on file;
+    // a free alias stores just the card it turned over, so this cannot apply.
+    if (id.tier === 'paying') {
       const { data: rows } = await supabaseAdmin
         .from('joke_cards')
         .select('id, angle, card_text, position, used_fallback, judge_score, created_at')
@@ -251,6 +306,7 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
           tier: id.tier,
           cards_used: counter.flips_used,
           sets_used: counter.sets_flipped,
+          usage: usageOf(id.tier, counter, resetsAt),
           cards: rows.map((r: any) =>
             toCard({
               id: r.id,
@@ -270,17 +326,23 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
     const counter = await readCounter(supabaseAdmin, id.subjectKey, day)
     const cap = budget(id.tier)
     const counted = counter.set_ids.includes(set.id as string)
+    const usage = usageOf(id.tier, counter, resetsAt)
     if (!counted && counter.sets_flipped >= cap.sets) {
-      return { ok: false, reason: 'daily_sets', tier: id.tier }
+      return { ok: false, reason: 'daily_sets', tier: id.tier, usage }
     }
     if (counter.flips_used + 3 > cap.cards) {
-      return { ok: false, reason: 'daily_cards', tier: id.tier }
+      return { ok: false, reason: 'daily_cards', tier: id.tier, usage }
     }
     if ((await chargeNetwork(supabaseAdmin, day, 3)) === 'limited') {
-      return { ok: false, reason: 'rate_limited', tier: id.tier }
+      return { ok: false, reason: 'rate_limited', tier: id.tier, usage }
     }
 
     await charge(supabaseAdmin, id.subjectKey, day, counter, 3, set.id as string)
+    const charged: JokeUsage = {
+      ...usage,
+      cards_used: counter.flips_used + 3,
+      sets_used: counted ? counter.sets_flipped : counter.sets_flipped + 1,
+    }
 
     const situation = (set.clean_text as string) ?? ''
     const archetype = (set.archetype as string) ?? 'general'
@@ -293,7 +355,10 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
       const angle = angles[position]!
       const out = lines[position]!
       let cardId: string | null = null
-      if (id.userId) {
+      // Members keep all three at the deal — they turn over all three. A free
+      // alias keeps only the one it turns over, written by keepJokeCard, so
+      // the two it never chose are never on file.
+      if (id.userId && id.tier === 'paying') {
         cardId = await persistCard(supabaseAdmin, {
           setId: set.id as string,
           userId: id.userId,
@@ -317,7 +382,9 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
       )
     }
 
-    if (id.userId) {
+    // The mirror hears what was actually read: a member reads all three, a
+    // free alias feeds it the one card it keeps (keepJokeCard).
+    if (id.userId && id.tier === 'paying') {
       void ingestJokeSignal(id.userId, set.id as string, cards.map((c) => c.text).join(' / ')).catch(() => {})
     }
 
@@ -325,8 +392,9 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
       ok: true,
       tier: id.tier,
       cards,
-      cards_used: counter.flips_used + 3,
-      sets_used: counted ? counter.sets_flipped : counter.sets_flipped + 1,
+      cards_used: charged.cards_used,
+      sets_used: charged.sets_used,
+      usage: charged,
     }
   })
 
@@ -561,11 +629,89 @@ const HeldCard = z.object({
   judge_score: z.number().nullable().optional(),
 })
 
+// ───────────────────── 5a · keep the card you turned over ─────────────────────
+//
+// A signed-in reader's flipped card is written to joke_cards and handed to
+// the mirror the moment it lands face-up. For a free alias this is the ONLY
+// write a set ever gets: the deal stored nothing, so what is kept is exactly
+// what was turned over, and the two cards left face-down are never on file.
+// Members already have all three from the deal; for them this is a no-op
+// that returns the stored id.
+
+export type KeepResult =
+  | { ok: true; card: JokeCard; tier: JokeTier }
+  | { ok: false; reason: 'sign_in_required' | 'not_found'; tier: JokeTier }
+
+export const keepJokeCard = createServerFn({ method: 'POST' })
+  .inputValidator((d: unknown) => z.object({ card: HeldCard, ...Ctx }).parse(d))
+  .handler(async ({ data }): Promise<KeepResult> => {
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+    const id = await resolveJokeIdentity(data.anon_session_id ?? null)
+    if (!id.userId) return { ok: false, reason: 'sign_in_required', tier: 'guest' }
+
+    const hold = data.card
+    const set = await loadOwnedSet(supabaseAdmin, hold.set_id, id.userId, data.anon_session_id ?? null)
+    if (!set) return { ok: false, reason: 'not_found', tier: id.tier }
+    // The card must be one of this set's three, in its own slot.
+    const angles = ((set.angles as string[]) ?? []).slice(0, 3)
+    if (angles[hold.position] !== hold.angle) return { ok: false, reason: 'not_found', tier: id.tier }
+
+    const { data: existing } = await supabaseAdmin
+      .from('joke_cards')
+      .select('id, card_text, used_fallback, judge_score, created_at')
+      .eq('set_id', hold.set_id)
+      .eq('position', hold.position)
+      .maybeSingle()
+    if (existing?.id) {
+      return {
+        ok: true,
+        tier: id.tier,
+        card: toCard({
+          id: existing.id as string,
+          position: hold.position,
+          angle: hold.angle,
+          text: (existing.card_text as string) ?? hold.text,
+          used_fallback: !!existing.used_fallback,
+          judge_score: (existing.judge_score as number | null) ?? null,
+          day: String(existing.created_at).slice(0, 10),
+        }),
+      }
+    }
+
+    const day = await resolveDay(supabaseAdmin, id.userId)
+    const cardId = await persistCard(supabaseAdmin, {
+      setId: hold.set_id,
+      userId: id.userId,
+      position: hold.position,
+      angle: hold.angle,
+      text: hold.text,
+      used_fallback: hold.used_fallback ?? false,
+      judge_score: hold.judge_score ?? null,
+    })
+    if (!cardId) return { ok: false, reason: 'not_found', tier: id.tier }
+    void ingestJokeSignal(id.userId, hold.set_id, hold.text).catch(() => {})
+
+    return {
+      ok: true,
+      tier: id.tier,
+      card: toCard({
+        id: cardId,
+        position: hold.position,
+        angle: hold.angle,
+        text: hold.text,
+        used_fallback: hold.used_fallback ?? false,
+        judge_score: hold.judge_score ?? null,
+        day,
+      }),
+    }
+  })
+
 export const claimJokeSession = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) =>
     z
       .object({
-        /** the three cards the guest was reading, so none of them are lost */
+        /** the cards the guest had turned over, so none of them are lost —
+         *  never the face-down ones, which stay unwritten */
         hold: z.array(HeldCard).max(3).nullable().optional(),
         terms_version: z.string().max(32).optional(),
         ...Ctx,
@@ -623,9 +769,9 @@ export const claimJokeSession = createServerFn({ method: 'POST' })
           birth_year: 1990,
           birth_month: 1,
           birth_day: 1,
-          accepted_terms_version: data.terms_version ?? '2026-09-04',
+          accepted_terms_version: data.terms_version ?? LEGAL_VERSION.terms,
           accepted_terms_at: new Date().toISOString(),
-          accepted_privacy_version: data.terms_version ?? '2026-09-04',
+          accepted_privacy_version: data.terms_version ?? LEGAL_VERSION.terms,
           accepted_privacy_at: new Date().toISOString(),
         } as never)
         if (!error) { alias = { display_name, emoji }; break }
@@ -634,7 +780,7 @@ export const claimJokeSession = createServerFn({ method: 'POST' })
       await supabaseAdmin
         .from('aliases')
         .update({
-          accepted_terms_version: data.terms_version ?? '2026-09-04',
+          accepted_terms_version: data.terms_version ?? LEGAL_VERSION.terms,
           accepted_terms_at: new Date().toISOString(),
         } as never)
         .eq('user_id', userId)
@@ -711,10 +857,18 @@ export const claimJokeSession = createServerFn({ method: 'POST' })
 
 export const listMyJokeCards = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ ...Ctx }).parse(d ?? {}))
-  .handler(async (): Promise<{ tier: JokeTier; cards: JokeCard[]; alias: { display_name: string; emoji: string } | null }> => {
-    const id = await resolveJokeIdentity(null)
-    if (!id.userId) return { tier: 'guest', cards: [], alias: null }
+  .handler(async ({ data: input }): Promise<{
+    tier: JokeTier
+    cards: JokeCard[]
+    alias: { display_name: string; emoji: string } | null
+    /** today's counter, so the composer knows before it sends */
+    usage: JokeUsage
+  }> => {
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+    const id = await resolveJokeIdentity(input.anon_session_id ?? null)
+    const { day, resetsAt } = await resolveDayInfo(supabaseAdmin, id.userId)
+    const usage = usageOf(id.tier, await readCounter(supabaseAdmin, id.subjectKey, day), resetsAt)
+    if (!id.userId) return { tier: 'guest', cards: [], alias: null, usage }
     const [{ data }, { data: alias }] = await Promise.all([
       supabaseAdmin
         .from('joke_cards')
@@ -757,6 +911,7 @@ export const listMyJokeCards = createServerFn({ method: 'POST' })
       alias: alias
         ? { display_name: alias.display_name as string, emoji: alias.emoji as string }
         : null,
+      usage,
     }
   })
 

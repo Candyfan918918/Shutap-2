@@ -202,7 +202,9 @@ export function SubscribePage() {
         {/* what opens */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginBottom: 28, ...fadeUp(0.06) }}>
           {[
-            'patterns across your scans — named',
+            'three situations a day, not one — all three cards turned over',
+            'exports with no shutap mark, print-size, the set in one tap',
+            'patterns across your cards and scans — named',
             'your arc over time, with proof',
             "what others who've been here came through",
           ].map((line) => (
@@ -276,12 +278,12 @@ export function SubscribePage() {
               </div>
             </div>
 
-            {/* trial reassurance */}
+            {/* billing, plainly */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginBottom: 28, ...fadeUp(0.14) }}>
               {[
-                `14 days free — first charge ${usd(plan.amount)} on day 14, or nothing if you cancel`,
-                'we email you before the trial ends — no surprises',
-                'cancel anytime from your profile',
+                `${usd(plan.amount)} charged today, then every ${plan.interval} — no free trial`,
+                'we email a receipt for every charge — no surprises',
+                'cancel anytime from your profile; access runs to the end of the period',
               ].map((line) => (
                 <div key={line} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <CheckGlyph />
@@ -326,11 +328,12 @@ export function SubscribePage() {
 
             {/* fine print */}
             <div style={{ fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: 12.5, lineHeight: 1.6, color: SOFT_MUTED, marginTop: 22, ...fadeUp(0.22) }}>
-              founders' pricing — locked in while you stay subscribed. cancel anytime from your profile; it takes effect at the end of the period. typing your situation, scan &amp; reading your set stay free, always. by subscribing you agree to the{' '}
+              founders' pricing — locked in while you stay subscribed. cancel anytime from your profile; it takes effect at the end of the period, and you go back to the free deal: one situation a day, one card. typing a situation, the scan and reading the card you turned over stay free, always. a membership buys room and pixels, never advice or relief. by subscribing you agree to the{' '}
               <a href="/terms" style={{ color: MUTED, textDecoration: 'underline' }}>terms</a>,{' '}
               <a href="/privacy" style={{ color: MUTED, textDecoration: 'underline' }}>privacy policy</a>,{' '}
               <a href="/disclaimer" style={{ color: MUTED, textDecoration: 'underline' }}>disclaimer</a> and{' '}
-              <a href="/terms#refunds" style={{ color: MUTED, textDecoration: 'underline' }}>refund policy</a>.
+              <a href="/terms#refunds" style={{ color: MUTED, textDecoration: 'underline' }}>refund policy</a>. new here?{' '}
+              <a href="/how-it-works" style={{ color: MUTED, textDecoration: 'underline' }}>how the cards work</a>.
             </div>
           </div>
         )}
@@ -406,7 +409,7 @@ export function SubscribeReturnPage() {
     : 'no checkout session found.'
   const body = state === 'ok'
     ? (trialing
-        ? 'your 14-day free trial has started — the whole portrait is yours.'
+        ? 'your trial is running — the whole portrait is yours.'
         : 'your subscription is active — the whole portrait is yours.')
     : state === 'checking' ? 'one moment while stripe finalizes.'
     : state === 'incomplete' ? 'if you completed payment, it should appear on your profile within a minute. otherwise, try again.'

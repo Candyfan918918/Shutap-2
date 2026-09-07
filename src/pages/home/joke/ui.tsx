@@ -3,7 +3,8 @@
  * Everything is inline-styled on purpose: this surface renders inside two
  * different page shells (`/` and `/mirror`), neither of which ships the button
  * classes, so the flow carries its own. */
-import type { CSSProperties, ReactNode } from 'react'
+import { useEffect, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { EyeMark, ShutapWordmark } from '@/components/brand/EyeMark'
 
 export const SORA = "'Sora',system-ui,sans-serif"
@@ -159,46 +160,33 @@ export function Eyebrow({ children, style }: { children: ReactNode; style?: CSSP
   )
 }
 
-/** The eyes. The companion's whole face, and the only mascot on this surface. */
-export function Eyes({ size = 26, accent = ACCENT_SOFT }: { size?: number; accent?: string }) {
-  const w = size * 0.48
-  const gap = size * 0.12
+/** The eyes. The companion's whole face, and the only mascot on this surface.
+ *  It is the canonical brand mark — never a hand-drawn stand-in — so the
+ *  companion in a sheet is the same pair of eyes as the header and the cards.
+ *  `size` is the rendered HEIGHT in px (what every caller here sizes by);
+ *  the width follows the mark's own 140:96 proportions. */
+export function Eyes({ size = 26 }: { size?: number; accent?: string }) {
+  const width = Math.round((size * 140) / 96)
   return (
     <span
       aria-hidden
-      style={{ display: 'inline-flex', alignItems: 'center', gap, flex: 'none', height: size }}
+      style={{ display: 'inline-flex', alignItems: 'center', flex: 'none', height: size }}
     >
-      {[0, 1].map((i) => (
-        <span
-          key={i}
-          style={{
-            position: 'relative',
-            width: w,
-            height: size,
-            borderRadius: w,
-            background: accent,
-            display: 'block',
-          }}
-        >
-          <span
-            style={{
-              position: 'absolute',
-              left: '50%',
-              top: '54%',
-              transform: 'translate(-50%,-50%)',
-              width: w * 0.7,
-              height: size * 0.42,
-              borderRadius: '50%',
-              background: '#120710',
-            }}
-          />
-        </span>
-      ))}
+      <EyeMark size={width} />
     </span>
   )
 }
 
-/** A bottom sheet. Never a route change — the cards stay where they are. */
+/** A bottom sheet. Never a route change — the cards stay where they are.
+ *
+ *  Rendered through a portal onto <body>. The joke surface sits inside
+ *  wrappers that animate with `transform` / `will-change: transform`, and any
+ *  such ancestor turns into the containing block for `position: fixed` — the
+ *  sheet then measures itself against that wrapper instead of the viewport
+ *  and gets cut off mid-screen. On <body> "fixed" means the viewport again.
+ *
+ *  Height is capped in dynamic viewport units so the mobile URL bar never
+ *  hides the buttons; on wider screens the sheet floats centred as a card. */
 export function Sheet({
   open,
   onClose,
@@ -212,33 +200,51 @@ export function Sheet({
   width?: number
   tone?: 'light' | 'dark'
 }) {
-  if (!open) return null
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [open, onClose])
+
+  if (!open || typeof document === 'undefined') return null
   const dark = tone === 'dark'
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+  return createPortal(
+    <div className="shutap-sheet-root" style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div
         onClick={onClose}
-        style={{ position: 'absolute', inset: 0, background: 'rgba(11,8,15,.55)', backdropFilter: 'blur(5px)' }}
+        style={{ position: 'absolute', inset: 0, background: 'rgba(11,8,15,.55)', backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)' }}
       />
       <div
         role="dialog"
         aria-modal="true"
+        className="shutap-sheet"
         style={{
           position: 'relative',
           width: `min(${width}px,100%)`,
-          maxHeight: '92vh',
+          maxHeight: 'min(92vh, calc(100dvh - 24px))',
           overflowY: 'auto',
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+          boxSizing: 'border-box',
           background: dark ? 'linear-gradient(160deg,#241019,#100c14)' : '#fff',
           border: dark ? '.5px solid rgba(255,255,255,.12)' : 'none',
           borderRadius: '24px 24px 0 0',
-          padding: '22px 20px 26px',
+          padding: '22px 20px calc(26px + env(safe-area-inset-bottom, 0px))',
           display: 'flex',
           flexDirection: 'column',
           gap: 14,
+          boxShadow: '0 -18px 60px -30px rgba(11,8,15,.5)',
           animation: 'shutapSheetIn .34s cubic-bezier(.2,.8,.2,1)',
         }}
       >
         <div
+          className="shutap-sheet-handle"
           style={{
             width: 44,
             height: 4,
@@ -250,8 +256,14 @@ export function Sheet({
         />
         {children}
       </div>
-      <style>{`@keyframes shutapSheetIn{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}`}</style>
-    </div>
+      <style>{`@keyframes shutapSheetIn{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+@media (min-width:640px) and (min-height:520px){
+  .shutap-sheet-root{align-items:center!important;padding:24px}
+  .shutap-sheet{border-radius:24px!important;max-height:min(88vh,calc(100dvh - 48px))!important;padding-bottom:26px!important;box-shadow:0 30px 80px -30px rgba(11,8,15,.55)!important}
+  .shutap-sheet-handle{display:none}
+}`}</style>
+    </div>,
+    document.body,
   )
 }
 

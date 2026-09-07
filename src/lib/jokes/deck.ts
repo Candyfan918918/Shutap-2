@@ -146,6 +146,66 @@ export type JokeCard = {
 
 export type JokeTier = 'guest' | 'free' | 'paying'
 
+/* ─────────────────────────── the ladder ───────────────────────────
+   One place for the numbers every sheet, page and policy quotes. The server
+   enforces them (jokes.functions.ts reads DAILY_SETS; useDeck reads
+   FLIPS_PER_SET); the copy below only describes them. */
+
+/** situations a day */
+export const DAILY_SETS: Record<JokeTier, number> = { guest: 1, free: 1, paying: 3 }
+/** cards turned over per situation (of three) */
+export const FLIPS_PER_SET: Record<JokeTier, number> = { guest: 1, free: 1, paying: 3 }
+
+/** What a membership buys, stated as behaviour. */
+export const MEMBER_BENEFITS: { line: string; detail: string }[] = [
+  { line: 'three situations a day, not one', detail: 'the deck resets every day in your own timezone.' },
+  { line: 'turn over all three cards of every set', detail: 'the take, the clapback and the roast — not just the one you pick.' },
+  { line: 'exports with no shutap mark', detail: 'free cards carry a small mark in the corner; yours are clean.' },
+  { line: '2160×3840 — print-size', detail: 'four times the pixels of a free export.' },
+  { line: 'save all three as a set', detail: 'one tap, one zip, the whole situation.' },
+  { line: 'the mirror — what your situations keep saying', detail: 'every card you keep goes into a private record it reads back to you.' },
+]
+
+/** What never costs anything, at any tier. */
+export const ALWAYS_FREE = [
+  'typing what happened, with identifying details scrubbed first',
+  'one situation a day, and one of its three cards turned over',
+  'reading the card you turned over, for as long as you like',
+]
+
+/* ─────────────────────── the daily budget, as the client sees it ───────────────────────
+   Resolved and enforced on the server; the browser only carries a copy so it
+   can say "that's today's lot" the moment someone presses enter, instead of
+   sending a spill off to be scrubbed, classified and written for nothing. */
+
+export type JokeUsage = {
+  /** cards written today — a deal costs three */
+  cards_used: number
+  cards_cap: number
+  /** situations opened today */
+  sets_used: number
+  sets_cap: number
+  /** ISO instant the counter rolls over, in the caller's own day */
+  resets_at: string
+}
+
+export type LimitReason = 'daily_sets' | 'daily_cards'
+
+/** Why the next deal would be refused, or null while there is room for one. */
+export function usageBlock(u: JokeUsage | null | undefined): LimitReason | null {
+  if (!u) return null
+  if (u.sets_used >= u.sets_cap) return 'daily_sets'
+  if (u.cards_used + 3 > u.cards_cap) return 'daily_cards'
+  return null
+}
+
+/** A copy of the counter is only worth consulting before it rolls over. */
+export function usageIsCurrent(u: JokeUsage | null | undefined, now = Date.now()): boolean {
+  if (!u) return false
+  const t = Date.parse(u.resets_at)
+  return Number.isFinite(t) && now < t
+}
+
 /* ─────────────────────────── what money buys ───────────────────────────
    Pixels, and only pixels. Reading the cards is free at every tier; the
    paid difference is the absent mark and the print-size export. Guests may

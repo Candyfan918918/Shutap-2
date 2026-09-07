@@ -1,6 +1,7 @@
 // Hourly cron: "we email you before the trial ends — no surprises."
 // Sends the mirror_trial_ending reminder to trialing mirror subscribers
-// whose trial ends within the next 48 hours (day ~12 of the 14-day trial).
+// whose trial ends within the next 48 hours. New subscriptions carry no
+// trial any more; this serves the trials that were already running.
 // The first-charge amount comes from the real Stripe price (never hardcoded).
 // Idempotent via billing_emails (kind + subscription id + trial end), so the
 // hourly cadence and cron retries never double-send; a cancelled-at-period-end

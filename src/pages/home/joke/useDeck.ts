@@ -12,16 +12,17 @@
  * Shared by the live surface and the design page so both walk the identical
  * machine, and there is only one place where "spent" is defined. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { SLOTS, shuffleSlots, type JokeTier, type SlotKey } from '@/lib/jokes/deck'
+import { FLIPS_PER_SET, SLOTS, shuffleSlots, type JokeTier, type SlotKey } from '@/lib/jokes/deck'
 import { HALF_TURN, prefersReducedMotion } from './FlipCard'
 
 /** `hold` is the mid-flip wait; `edge` is the one frame where content swaps. */
 export type DeckPhase = 'front' | 'out' | 'hold' | 'edge' | 'in'
 
-/** Members turn over all three. Everyone else turns over one — and reads it,
- *  keeps it, shares it and downloads it on exactly the same terms. */
+/** Members turn over all three, on every one of their three situations a
+ *  day. Everyone else turns over one — and reads it, keeps it, shares it and
+ *  downloads it on exactly the same terms. */
 export function flipsAllowed(tier: JokeTier): number {
-  return tier === 'paying' ? SLOTS.length : 1
+  return Math.min(SLOTS.length, FLIPS_PER_SET[tier])
 }
 
 export function useDeck({
@@ -54,8 +55,12 @@ export function useDeck({
     return () => held.forEach((t) => window.clearTimeout(t))
   }, [])
 
-  // A new situation deals a new set: everything face-down again.
+  // A new situation deals a new set: everything face-down again — and no
+  // half-turn still in flight from the last set may land on this one, or a
+  // card ends up parked on its edge, invisible, before anyone touched it.
   useEffect(() => {
+    timers.current.forEach((t) => window.clearTimeout(t))
+    timers.current = []
     setPhases({})
     setPulsing(false)
     flipCount.current = 0
