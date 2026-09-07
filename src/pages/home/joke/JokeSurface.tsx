@@ -944,7 +944,14 @@ export function JokeSurface() {
                 🃏 {list.length} kept · {days <= 1 ? 'day one' : `${days} days of it`}
               </span>
             </div>
-            <SetList groups={groups} />
+            {/* The same card and the same two actions the deck offers, so a
+                card you kept reads identically here and in the profile. */}
+            <SetList
+              groups={groups}
+              mark={tier !== 'paying'}
+              onShare={(card) => void openShare(card)}
+              onDownload={(card) => void doSave(card)}
+            />
 
             <div style={{ marginTop: 6, background: 'radial-gradient(120% 120% at 10% 0%,rgba(127,119,221,.06),#fff 65%)', border: '1px solid rgba(11,8,15,.08)', borderRadius: 22, padding: 'clamp(20px,3vw,30px)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 18 }}>
               <div style={{ maxWidth: '52ch' }}>

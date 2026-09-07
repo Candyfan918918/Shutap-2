@@ -18,8 +18,13 @@ import { getStripeEnvironment } from '@/lib/stripe'
 import { signOut as unifiedSignOut } from '@/lib/auth'
 import { supabase } from '@/integrations/supabase/client'
 import { useNoIndex } from '@/components/NoIndex'
+import { listMyJokeCards, exportJokeCards } from '@/lib/jokes.functions'
+import type { JokeCard, JokeTier } from '@/lib/jokes/deck'
+import { SetList, type SetGroup } from './home/joke/SetList'
+import { Eyes } from './home/joke/ui'
+import { anonSessionId, svgToPng, saveBlob } from './home/joke/jokeClient'
 
-type Tab = 'all' | 'rooms' | 'journals' | 'scans'
+type Tab = 'all' | 'rooms' | 'journals' | 'scans' | 'cards'
 
 
 interface Situation {
@@ -74,6 +79,73 @@ export function ProfilePage() {
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [showDelete, setShowDelete] = useState(false)
 
+  // ── 🃏 the cards tab ──
+  const listJokeCards = useServerFn(listMyJokeCards)
+  const exportCards = useServerFn(exportJokeCards)
+  const [cards, setCards] = useState<JokeCard[] | null>(null)
+  const [jokeTier, setJokeTier] = useState<JokeTier>('guest')
+  const [cardBusy, setCardBusy] = useState(false)
+
+  async function refreshCards() {
+    try {
+      const res = await listJokeCards({ data: { anon_session_id: anonSessionId() } })
+      setJokeTier(res.tier)
+      setCards(res.cards)
+    } catch {
+      // Signed out, or the call failed — either way the tab shows the guest
+      // state rather than an error, because for a guest that IS the answer.
+      setCards([])
+    }
+  }
+
+  /** The same export the deck offers, from the card you kept. */
+  async function downloadCard(card: JokeCard) {
+    if (!card.id || cardBusy) return
+    setCardBusy(true)
+    try {
+      const res = await exportCards({ data: { card_id: card.id, anon_session_id: anonSessionId() } })
+      const image = res.images[0]
+      if (!image) throw new Error('no image')
+      saveBlob(await svgToPng(image.svg, res.width, res.height), image.filename)
+      toast(`saved at ${res.width}×${res.height}${res.mark ? ' · with the shutap mark' : ' · clean'}`)
+    } catch {
+      toast('the image did not render. try once more?')
+    } finally {
+      setCardBusy(false)
+    }
+  }
+
+  async function shareCard(card: JokeCard) {
+    const text = `${card.text}\n\n— said it on shutap.com`
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ text })
+        return
+      }
+      await navigator.clipboard.writeText(text)
+      toast('copied. paste it wherever it lands best.')
+    } catch {
+      // A dismissed share sheet lands here too, which is not worth a message.
+    }
+  }
+
+  /** Newest first, grouped by the situation each card was written for. */
+  const cardGroups = useMemo<SetGroup[]>(() => {
+    const out: SetGroup[] = []
+    const seen = new Map<string, SetGroup>()
+    for (const c of cards ?? []) {
+      const key = c.set_id ?? c.day ?? 'unknown'
+      let g = seen.get(key)
+      if (!g) {
+        g = { id: key, situation: c.situation ?? '', cards: [] }
+        seen.set(key, g)
+        out.push(g)
+      }
+      g.cards.push(c)
+    }
+    return out
+  }, [cards])
+
   async function refresh() {
     try {
       const data = (await list()) as Situation[]
@@ -106,6 +178,7 @@ export function ProfilePage() {
     refresh()
     refreshAlias()
     refreshBilling()
+    refreshCards()
     supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? ''))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -294,6 +367,9 @@ export function ProfilePage() {
                 { n: counts.rooms, label: 'rooms open' },
                 { n: counts.journals, label: 'private journals' },
                 { n: counts.scans, label: 'scans' },
+                // An em dash rather than 0: a guest has not kept none, a guest
+                // cannot keep. Zero would read as a score.
+                { n: jokeTier === 'guest' ? '—' : String(cards?.length ?? 0), label: 'cards kept' },
               ].map((s) => (
                 <div key={s.label}>
                   <div style={{ fontFamily: 'Sora,sans-serif', fontWeight: 800, fontSize: 21, color: '#fff', letterSpacing: '-.02em', fontVariantNumeric: 'tabular-nums' }}>{s.n}</div>
@@ -306,7 +382,7 @@ export function ProfilePage() {
 
         {/* tabs (underline) */}
         <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', marginBottom: 22, borderBottom: '.5px solid rgba(11,8,15,.08)' }}>
-          {(['all', 'rooms', 'journals', 'scans'] as Tab[]).map((f) => {
+          {(['all', 'rooms', 'journals', 'scans', 'cards'] as Tab[]).map((f) => {
             const active = tab === f
             return (
               <button
@@ -325,14 +401,30 @@ export function ProfilePage() {
                   marginBottom: -1,
                 }}
               >
-                {f === 'all' ? 'all' : f === 'rooms' ? 'rooms' : f === 'journals' ? 'journals' : 'scans ✦'}
+                {f === 'all' ? 'all'
+                  : f === 'rooms' ? 'rooms'
+                    : f === 'journals' ? 'journals'
+                      : f === 'scans' ? 'scans ✦'
+                        : 'cards 🃏'}
               </button>
             )
           })}
         </div>
 
-        {/* list */}
-        {rows === null ? (
+        {/* ── 🃏 cards ──
+            Its own tab rather than rows in "all": a kept card is an artifact
+            with a picture, and it does not queue behind rooms and journals in
+            a list built for titles and sublines. */}
+        {tab === 'cards' ? (
+          <CardsTab
+            tier={jokeTier}
+            cards={cards}
+            groups={cardGroups}
+            onShare={shareCard}
+            onDownload={downloadCard}
+            navigate={navigate}
+          />
+        ) : rows === null ? (
           <div style={{ textAlign: 'center', padding: '40px 0', fontFamily: 'Newsreader,serif', fontStyle: 'italic', color: '#6f666c' }}>loading…</div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '50px 0', fontFamily: 'Newsreader,serif', fontStyle: 'italic', color: '#6f666c' }}>
@@ -576,6 +668,167 @@ function BillingCard({
             {portalBusy ? 'opening…' : 'manage →'}
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+/* ── the cards tab ──
+ *
+ * Three states, and they are genuinely different answers rather than degrees
+ * of the same one:
+ *   · a guest has no cards because a guest deck writes nothing down. That is
+ *     the rule, not a failure, so it is stated plainly and the alias is
+ *     offered — never as a wall in front of cards that exist.
+ *   · an alias with nothing kept yet is pointed back at the composer.
+ *   · anything kept is rendered by SetList, the same component and the same
+ *     card the joke surface uses, so the two cannot drift apart.
+ */
+function CardsTab({
+  tier,
+  cards,
+  groups,
+  onShare,
+  onDownload,
+  navigate,
+}: {
+  tier: JokeTier
+  cards: JokeCard[] | null
+  groups: SetGroup[]
+  onShare: (card: JokeCard) => void
+  onDownload: (card: JokeCard) => void
+  navigate: (to: string) => void
+}) {
+  const total = cards?.length ?? 0
+  const guest = tier === 'guest'
+  const keepRule = tier === 'paying'
+    ? 'every card you turn over is kept'
+    : tier === 'free' ? 'the card you turn over is kept' : 'guests keep nothing'
+  const meter = guest
+    ? 'reading is free, forever'
+    : `${total} kept across ${groups.length} situation${groups.length === 1 ? '' : 's'}`
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontFamily: 'Sora,sans-serif', fontWeight: 600, fontSize: 10.5, letterSpacing: '.16em', textTransform: 'uppercase', color: '#6f666c' }}>
+          {keepRule}
+        </span>
+        <span style={{ fontFamily: 'Newsreader,serif', fontStyle: 'italic', fontSize: 13.5, color: '#6f666c' }}>
+          {meter}
+        </span>
+      </div>
+
+      {cards === null ? (
+        <div style={{ textAlign: 'center', padding: '40px 0', fontFamily: 'Newsreader,serif', fontStyle: 'italic', color: '#6f666c' }}>
+          loading…
+        </div>
+      ) : guest ? (
+        <div style={{ textAlign: 'center', padding: '44px 0 30px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+          <Eyes size={30} />
+          <p style={{ margin: 0, maxWidth: '38ch', fontFamily: 'Newsreader,serif', fontStyle: 'italic', fontSize: 17, lineHeight: 1.55, color: '#2e1a26', textWrap: 'pretty' }}>
+            you read the whole set and kept none of it — a guest deck writes nothing down. reading
+            stays free; an alias is only needed to keep one.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            style={{
+              height: 44, padding: '0 22px', border: 'none', borderRadius: 999, cursor: 'pointer',
+              fontFamily: 'Sora,sans-serif', fontWeight: 700, fontSize: 14.5, letterSpacing: '-.01em',
+              color: '#fff', background: 'linear-gradient(155deg,#e7548a,#c1216b 55%,#890041)',
+              boxShadow: '0 14px 30px -18px rgba(137,0,65,.75)',
+            }}
+          >
+            pick an alias · free
+          </button>
+        </div>
+      ) : total === 0 ? (
+        <div style={{ textAlign: 'center', padding: '50px 0', fontFamily: 'Newsreader,serif', fontStyle: 'italic', fontSize: 15, color: '#6f666c' }}>
+          nothing kept yet.{' '}
+          <span style={{ color: '#c1216b', cursor: 'pointer' }} onClick={() => navigate('/')}>write a set →</span>
+        </div>
+      ) : (
+        <>
+          <SetList
+            groups={groups}
+            mark={tier !== 'paying'}
+            onShare={onShare}
+            onDownload={onDownload}
+          />
+          <MirrorMemory tier={tier} cards={cards} total={total} navigate={navigate} />
+        </>
+      )}
+    </div>
+  )
+}
+
+/* What the kept cards have told the mirror. The numbers are read off the same
+   cards above rather than fetched: this is a readout of what is on screen, and
+   a second source could disagree with it. The one thing a member sees that a
+   free alias does not is the behaviour name — blurred rather than hidden, so
+   the shape of what is being withheld is honest. */
+function MirrorMemory({
+  tier,
+  cards,
+  total,
+  navigate,
+}: {
+  tier: JokeTier
+  cards: JokeCard[]
+  total: number
+  navigate: (to: string) => void
+}) {
+  const favourite = useMemo(() => {
+    const n: Record<string, number> = {}
+    for (const c of cards) n[c.angle] = (n[c.angle] ?? 0) + 1
+    const top = Object.keys(n).sort((a, b) => (n[b] ?? 0) - (n[a] ?? 0))[0]
+    if (!top) return '—'
+    const label = cards.find((c) => c.angle === top)?.angleLabel ?? top
+    return label.replace(/^the /, '')
+  }, [cards])
+
+  const paying = tier === 'paying'
+  const stats = [
+    { n: String(total), label: 'joke signals', blur: 'none' },
+    { n: paying ? 'boundary' : '—', label: 'behaviour on repeat', blur: paying ? 'none' : 'blur(4px)' },
+    { n: favourite, label: 'your angle', blur: 'none' },
+  ]
+
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden', background: '#100c14', borderRadius: 22, padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ position: 'absolute', width: '56%', height: '130%', right: '-14%', top: '-30%', background: 'radial-gradient(circle,rgba(231,84,138,.28),transparent 64%)', filter: 'blur(14px)', pointerEvents: 'none' }} />
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 9 }}>
+        <Eyes size={18} />
+        <span style={{ fontFamily: 'Sora,sans-serif', fontWeight: 800, fontSize: 11, letterSpacing: '.22em', textTransform: 'uppercase', color: '#9e7a8c' }}>
+          mirror memory · 🃏 joke
+        </span>
+      </div>
+      <p style={{ margin: 0, position: 'relative', fontFamily: 'Newsreader,serif', fontStyle: 'italic', fontSize: 17, lineHeight: 1.55, color: '#f7e8f0', textWrap: 'pretty', maxWidth: '46ch' }}>
+        {paying
+          ? 'every card you keep feeds the mirror as its own 🃏 joke signal — three angles per situation is enough to see which behaviour keeps coming back, and how your jokes changed as you did.'
+          : 'each card you keep enters the mirror as a 🃏 joke signal. one per situation shows it what landed; all three would show it what you chose not to say.'}
+      </p>
+      <div style={{ position: 'relative', display: 'flex', gap: 26, flexWrap: 'wrap', paddingTop: 14, borderTop: '.5px solid rgba(255,255,255,.10)' }}>
+        {stats.map((s) => (
+          <div key={s.label}>
+            <div style={{ fontFamily: 'Sora,sans-serif', fontWeight: 800, fontSize: 21, color: '#fff', letterSpacing: '-.02em', fontVariantNumeric: 'tabular-nums', filter: s.blur }}>
+              {s.n}
+            </div>
+            <div style={{ fontFamily: 'Sora,sans-serif', fontWeight: 600, fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: '#a99fa8', marginTop: 2, whiteSpace: 'nowrap' }}>
+              {s.label}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ position: 'relative' }}>
+        <button
+          type="button"
+          onClick={() => navigate('/mirror')}
+          style={{ padding: '6px 12px', borderRadius: 999, border: '.5px solid #ff7eb340', background: '#ff7eb310', color: '#ff7eb3', fontFamily: 'Sora,sans-serif', fontWeight: 600, fontSize: 12, letterSpacing: '.02em', cursor: 'pointer' }}
+        >
+          open the full mirror →
+        </button>
       </div>
     </div>
   )

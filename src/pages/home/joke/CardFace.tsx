@@ -21,12 +21,15 @@ export function CardFace({
   card,
   situation,
   mark,
-  loading,
+  loading = false,
 }: {
   card: JokeCard
-  situation: string
+  /** Omitted wherever the situation already stands above the card. In the set
+   *  list one line heads a whole group, so printing it again on each of three
+   *  cards is the same sentence three times. */
+  situation?: string
   mark: boolean
-  loading: boolean
+  loading?: boolean
 }) {
   const accent = angleAccent(card.angle)
   return (
@@ -71,9 +74,11 @@ export function CardFace({
       </div>
 
       <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '4cqw' }}>
-        <div style={{ font: '400 4.4cqw/1.45 Inter,sans-serif', color: CARD_FAINT, maxWidth: '26ch' }}>
-          {situation}
-        </div>
+        {situation ? (
+          <div style={{ font: '400 4.4cqw/1.45 Inter,sans-serif', color: CARD_FAINT, maxWidth: '26ch' }}>
+            {situation}
+          </div>
+        ) : null}
         <div style={{ font: 'italic 400 8cqw/1.32 Newsreader,serif', letterSpacing: '-.01em', color: CARD_INK, textWrap: 'pretty', opacity: loading ? 0.35 : 1, transition: 'opacity .25s' }}>
           {loading ? 'shuffling…' : card.text}
         </div>
