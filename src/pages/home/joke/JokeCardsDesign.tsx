@@ -300,12 +300,12 @@ export function JokeCardsDesign() {
           })}
         </div>
 
-        {tier !== 'paying' && deck.used >= 1 ? (
+        {tier === 'guest' && deck.used >= 1 ? (
           <PaywallBlock
             pulsing={deck.pulsing}
-            line="you flipped one. members flip all three, on every situation — and their cards carry no mark."
-            cta="flip all three"
-            onCta={() => say('this is where checkout would open')}
+            line="you turned one over. the other two are written and waiting — an alias turns them over, and keeps all three."
+            cta="get my alias — it's free"
+            onCta={() => setSheet(true)}
           />
         ) : null}
 
@@ -392,7 +392,7 @@ export function JokeCardsDesign() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
             <SectionEyebrow>3 · spent</SectionEyebrow>
-            <Lede>the unflipped cards do not change. one honest offer in one place beats locks scattered across the surface.</Lede>
+            <Lede>a guest&apos;s two unflipped cards do not change. they are the sign-up wall — and a strong one, because the two labelled backs they cannot turn are right there. one honest ask in one place beats locks scattered across the surface.</Lede>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 24, alignItems: 'start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -408,10 +408,10 @@ export function JokeCardsDesign() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', background: '#f7f6f4', border: '.5px solid #e7548a', borderRadius: 22, padding: '16px 18px' }}>
                 <span style={{ flex: '1 1 200px', minWidth: 0, fontFamily: INTER, fontSize: 14, lineHeight: 1.5, color: INK }}>
-                  you flipped one. members flip all three, on every situation.
+                  you turned one over. the other two are written and waiting — an alias turns them over.
                 </span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap', height: 38, padding: '0 16px', borderRadius: 999, background: 'linear-gradient(92deg,#e7548a 0%,#890041 70%)', color: '#fff', fontFamily: SORA, fontWeight: 800, fontSize: 12, lineHeight: 1 }}>
-                  flip all three
+                  get my alias — it&apos;s free
                 </span>
               </div>
             </div>
@@ -461,11 +461,15 @@ export function JokeCardsDesign() {
           >
             <div style={{ width: 38, height: 4, borderRadius: 999, background: 'rgba(11,8,15,.14)', alignSelf: 'center' }} />
             <EyeMark size={30} />
-            <span style={{ fontFamily: SORA, fontWeight: 800, fontSize: 21, lineHeight: 1.15, letterSpacing: '-.03em', color: INK }}>cards need a name.</span>
+            <span style={{ fontFamily: SORA, fontWeight: 800, fontSize: 21, lineHeight: 1.15, letterSpacing: '-.03em', color: INK }}>the other two need a name.</span>
             <span style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 16, lineHeight: 1.45, color: PROSE }}>a fake one. that&apos;s the whole point of this place.</span>
-            <Note style={{ fontSize: 13.5 }}>30 seconds, no real name. then this card is yours to send — without the mark.</Note>
+            <Note style={{ fontSize: 13.5 }}>30 seconds, no real name. then all three are yours to turn over, keep and send.</Note>
             <div style={{ alignSelf: 'stretch', display: 'flex', flexDirection: 'column', gap: 9, marginTop: 4 }}>
-              <Button full onClick={() => { setSheet(false); pickTier('free') }}>get my alias</Button>
+              {/* Signing in keeps the deck as it stands — the card already
+                  turned over stays turned over, and the wall lifts off the
+                  other two. That is the product's behaviour, so the page
+                  shows it rather than dealing a fresh set. */}
+              <Button full onClick={() => { setSheet(false); setTier('free'); say('the other two are yours now. turn them over.') }}>get my alias</Button>
               <Button full variant="ghost" size="sm" onClick={() => setSheet(false)}>not yet</Button>
             </div>
           </div>

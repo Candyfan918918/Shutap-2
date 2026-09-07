@@ -202,7 +202,7 @@ export function SubscribePage() {
         {/* what opens */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginBottom: 28, ...fadeUp(0.06) }}>
           {[
-            'three situations a day, not one — all three cards turned over',
+            'three situations a day, not one — everything kept',
             'exports with no shutap mark, print-size, the set in one tap',
             'patterns across your cards and scans — named',
             'your arc over time, with proof',

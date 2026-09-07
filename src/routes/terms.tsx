@@ -112,15 +112,17 @@ function TermsPage() {
 
       <h3 id="plans">9. Free use, daily limits, and what a membership buys.</h3>
       <p>
-        <b>Free, always:</b> typing one situation a day, and turning over one of its three cards.
-        A signed-in free alias also keeps the card it turned over, and may save it (1080&times;1920,
-        with a small shutap mark), share it, and post it to a room. Guests keep nothing until they
-        choose an alias, at which point the card they had turned over comes with them.
+        <b>Free, always:</b> typing one situation a day. A guest turns over one of its three cards;
+        the other two stay face down until an alias is chosen. A signed-in free alias turns over all
+        three cards of its situation, keeps them in its set list and the Mirror&rsquo;s record, and may
+        save them (1080&times;1920, with a small shutap mark), share them, and post them to a room.
+        Guests keep nothing until they choose an alias, at which point the card they had turned over
+        comes with them.
       </p>
       <p>
-        <b>Membership:</b> a paid subscription adds three situations a day instead of one; all three
-        cards of every set turned over; exports with no mark at 2160&times;3840; the whole set saved
-        in one tap; and the Mirror. A membership buys room and pixels. It does not buy advice,
+        <b>Membership:</b> a paid subscription adds three situations a day instead of one; exports
+        with no mark at 2160&times;3840; the whole set saved in one tap; and the Mirror&rsquo;s
+        patterns across everything kept. A membership buys room and pixels. It does not buy advice,
         diagnosis, treatment, or relief, and it does not change what the jokes are.
       </p>
       <p>

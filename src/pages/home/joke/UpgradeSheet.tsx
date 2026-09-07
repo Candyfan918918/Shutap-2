@@ -3,7 +3,7 @@
 // It sells RESOLUTION, never relief. It arrives after a win (the save has
 // already happened, the card is already theirs) and never before one, it never
 // appears while a set is still being read, and it never appears at all for a
-// crisis. Declining it costs nothing: all three cards stay free, forever.
+// crisis. Declining it costs nothing: the cards you turned over stay yours.
 import type React from 'react'
 import { ALWAYS_FREE, MEMBER_BENEFITS, type JokeTier } from '@/lib/jokes/deck'
 import { EyeMark, ShutapWordmark } from '@/components/brand/EyeMark'
@@ -63,7 +63,7 @@ export function UpgradeSheet({
             four times bigger.
           </h2>
           <p style={{ margin: '14px 0 0', fontFamily: NEWS, fontStyle: 'italic', fontSize: 19, lineHeight: 1.5, color: '#c4a0b2', maxWidth: '34ch' }}>
-            more of them, all of them turned over, and yours properly.
+            three situations a day, yours properly, and the mirror reading all of it.
           </p>
         </div>
 

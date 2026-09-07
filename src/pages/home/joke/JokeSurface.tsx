@@ -70,6 +70,9 @@ type Pending =
   | { type: 'post'; position: number }
   | { type: 'saveSet' }
   | { type: 'checkout' }
+  /** A guest tapped one of the two cards behind the wall. Nothing to resume
+   *  but the deck itself, which unlocks the moment the tier changes. */
+  | { type: 'flip' }
   /** the limit sheet sent a guest to get an alias; the members' offer follows */
   | { type: 'upgrade' }
 
@@ -233,14 +236,15 @@ export function JokeSurface() {
     else if (p.type === 'post') void doPost(at(p.position))
     else if (p.type === 'checkout') void navigate({ to: '/subscribe', search: { plan: 'monthly' } as never })
     else if (p.type === 'upgrade') { jokeTrack('upgrade_shown', tier, { after: 'limit' }); setUpgradeOpen(true) }
+    else if (p.type === 'flip') say('the other two are yours now. turn them over.')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeAt])
 
   /** Sign-in lands back on this page. Claim the guest session, then resume. */
   const claimAndResume = useCallback(async () => {
     // Whatever they had turned over as a guest rides along, so the gate costs
-    // them none of it. Only what was turned over: the face-down cards stay
-    // unwritten, exactly as they would for a free alias.
+    // them none of it. Only what was turned over: the two still face-down are
+    // written when they turn them — which, with an alias, they now can.
     const revealed = new Set(deck.revealedSlots.map((s) => s.key as string))
     const held = set
       ? cards
@@ -478,9 +482,10 @@ export function JokeSurface() {
     return cards.find((c) => c.position === position) ?? null
   }
 
-  /** A signed-in reader's turned-over card, on file. The deal stores nothing
-   *  for a free alias, so the first save, share or post of a card — or its
-   *  reveal, whichever comes first — is what writes it. Idempotent: a card
+  /** A signed-in reader's card, on file. A signed-in deal stores all three,
+   *  so this only ever writes for a set dealt as a guest and carried through
+   *  the alias gate: the first save, share or post of one of those cards — or
+   *  its reveal, whichever comes first — is what writes it. Idempotent: a card
    *  that already has an id is handed straight back. */
   async function ensureKept(target: JokeCard): Promise<JokeCard> {
     if (target.id || !signedIn || !set) return target
@@ -601,9 +606,9 @@ export function JokeSurface() {
   /** The set list, newest first, each situation with the cards under it.
    *  The open set shows only what has actually been turned over — the two
    *  still face-down are not in the list, because as far as the reader is
-   *  concerned they have not been written. Older sets come back as stored,
-   *  which for a free alias is only ever the card it turned over
-   *  (keepJokeCard) and for a member all three. */
+   *  concerned they have not been written. Older sets come back as stored —
+   *  all three for anyone signed in, or just the card a guest turned over
+   *  before the alias gate (keepJokeCard). */
   const groups = useMemo<SetGroup[]>(() => {
     const out: SetGroup[] = []
     const seen = new Map<string, SetGroup>()
@@ -724,7 +729,7 @@ export function JokeSurface() {
               <ol style={{ margin: 0, padding: '12px 18px', listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7, background: 'rgba(127,119,221,.06)', border: '1px solid rgba(11,8,15,.07)', borderRadius: 18, fontFamily: NEWS, fontStyle: 'italic', fontSize: 14.5, lineHeight: 1.5, color: '#443c42', textAlign: 'left' }}>
                 <li><span style={{ color: '#8e1c4c' }}>i.</span> type what happened — names get scrubbed before anything saves.</li>
                 <li><span style={{ color: '#8e1c4c' }}>ii.</span> i write you a set of three, face-down: a take, a clapback, a roast. you turn over one.</li>
-                <li><span style={{ color: '#8e1c4c' }}>iii.</span> one situation a day is free. an alias keeps the card you turned over; members get three a day and all three cards.</li>
+                <li><span style={{ color: '#8e1c4c' }}>iii.</span> one situation a day is free. a guest turns over one card; an alias turns over all three and keeps them. members get three situations a day, and the mirror.</li>
                 <li style={{ fontFamily: SORA, fontStyle: 'normal', fontSize: 12.5 }}>
                   <a href="/how-it-works" target="_blank" rel="noreferrer" style={{ color: '#8e1c4c', textDecoration: 'underline', textUnderlineOffset: 3 }}>the full explanation →</a>
                 </li>
@@ -861,22 +866,25 @@ export function JokeSurface() {
               </div>
             ) : null}
 
-            {/* ── the one offer, in the one place ──
-                Below the deck, after the revealed card. The unflipped cards are
-                untouched; this is what a tap on one of them points at. */}
-            {deck.revealedSlots.length > 0 && tier !== 'paying' ? (
+            {/* ── the sign-up wall, in the one place ──
+                A guest turns over one card; the other two stay face-down,
+                labelled, untouched — and this block under them is the only
+                thing that says why. A tap on either of them points here. It
+                asks for an alias, not money: anyone with a name turns over
+                all three, so there is no flip paywall for a free alias. */}
+            {deck.revealedSlots.length > 0 && tier === 'guest' ? (
               <PaywallBlock
                 pulsing={deck.pulsing}
-                line="you turned one over. members turn over all three, on every situation — and their cards carry no mark."
-                cta="turn over all three"
-                onCta={() => { jokeTrack('upgrade_shown', tier, { after: 'deck' }); setUpgradeOpen(true) }}
+                line="you turned one over. the other two are written and waiting — an alias turns them over, and keeps all three."
+                cta="get my alias — it's free"
+                onCta={() => raiseGate('flip', { type: 'flip' })}
               />
             ) : null}
 
             {deck.revealedSlots.length > 0 ? (
               <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 14, color: FAINT }}>
                 {tier === 'guest'
-                  ? 'reading is free, forever. an alias is only needed to keep one.'
+                  ? 'reading is free, forever. an alias is a fake name — 30 seconds, no password.'
                   : tier === 'paying'
                     ? `clean · ${spec.width}×${spec.height} · no mark on any of them.`
                     : `saves at ${spec.width}×${spec.height}, with the little shutap mark.`}
