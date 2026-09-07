@@ -3,11 +3,11 @@
  * Goes up the moment someone presses enter on a spent day — before the spill
  * is sent anywhere, so no scrubber, classifier or writer runs for a set the
  * deal would only refuse. It says what the limit is, when it resets, and what
- * the next step buys: a guest is pointed at an alias (every card kept, and
- * the door to the members' deck), and everyone under paying is shown the
- * members' offer after that — three situations a day, all three cards turned
- * over, stated as what they are. A paying member is at the top of that
- * ladder, so their copy is a reset time and nothing else. */
+ * the next step buys: a guest is pointed at an alias (all three cards turned
+ * over and kept, and the door to the members' deck), and everyone under
+ * paying is shown the members' offer after that — three situations a day,
+ * clean exports, the mirror — stated as what they are. A paying member is at
+ * the top of that ladder, so their copy is a reset time and nothing else. */
 import type { JokeTier, JokeUsage, LimitReason } from '@/lib/jokes/deck'
 import { Button, CompanionLine, Sheet, SORA, NEWS, INK, MUTED, FAINT, ACCENT } from './ui'
 
@@ -38,13 +38,13 @@ function copy(tier: JokeTier, reason: LimitSheetReason, usage: JokeUsage | null)
   if (tier === 'guest') {
     return {
       lead: `that's the deck for today — ${sets}.`,
-      body: `it resets ${reset}. an alias — a fake one, thirty seconds — keeps the card you turn over. members get three situations a day, turn over all three cards of each, and save them with no mark.`,
+      body: `it resets ${reset}. an alias — a fake one, thirty seconds — turns over all three cards of a situation and keeps them. members get three situations a day and save them with no mark.`,
     }
   }
   if (tier === 'free') {
     return {
       lead: `that's the deck for today — ${sets}.`,
-      body: `it resets ${reset}. members get three situations a day, turn over all three cards of each, and save them clean and four times bigger.`,
+      body: `it resets ${reset}. members get three situations a day, save them clean and four times bigger, and the mirror reads the patterns across all of it.`,
     }
   }
   return {

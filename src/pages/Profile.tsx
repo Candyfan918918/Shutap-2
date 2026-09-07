@@ -806,8 +806,8 @@ function MirrorMemory({
       </div>
       <p style={{ margin: 0, position: 'relative', fontFamily: 'Newsreader,serif', fontStyle: 'italic', fontSize: 17, lineHeight: 1.55, color: '#f7e8f0', textWrap: 'pretty', maxWidth: '46ch' }}>
         {paying
-          ? 'every card you keep feeds the mirror as its own 🃏 joke signal — three angles per situation is enough to see which behaviour keeps coming back, and how your jokes changed as you did.'
-          : 'each card you keep enters the mirror as a 🃏 joke signal. one per situation shows it what landed; all three would show it what you chose not to say.'}
+          ? 'every card you keep feeds the mirror as its own 🃏 joke signal — three situations a day is enough to see which behaviour keeps coming back, and how your jokes changed as you did.'
+          : 'every card you keep enters the mirror as a 🃏 joke signal — all three of each situation. members give it three situations a day, and it reads the patterns back.'}
       </p>
       <div style={{ position: 'relative', display: 'flex', gap: 26, flexWrap: 'wrap', paddingTop: 14, borderTop: '.5px solid rgba(255,255,255,.10)' }}>
         {stats.map((s) => (
