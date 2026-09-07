@@ -515,11 +515,11 @@ export const writeJokeCard = createServerFn({ method: 'POST' })
         .eq('set_id', set.id)
         .order('position', { ascending: true })
       if (all && all.length >= 3) {
-        void ingestJokeSignal(
+        await ingestJokeSignal(
           id.userId,
           set.id as string,
           all.map((r) => String(r.card_text)).join(' / '),
-        ).catch(() => {})
+        )
       }
     }
 
@@ -625,7 +625,7 @@ export const rerollJokeCard = createServerFn({ method: 'POST' })
         used_fallback: out.used_fallback,
         judge_score: out.judge_score,
       })
-      void ingestJokeSignal(id.userId, set.id as string, out.text).catch(() => {})
+      await ingestJokeSignal(id.userId, set.id as string, out.text)
     }
 
     return {
@@ -657,14 +657,29 @@ export const rerollJokeCard = createServerFn({ method: 'POST' })
 // `pre_scrubbed` is not set: a card is written by a model, so it goes through
 // the scrubber like any other text before it is embedded or stored, even
 // though the situation it came from was scrubbed already.
+// Callers AWAIT this. ingestMirrorSignal is the pipeline's "fast, durable
+// path": it awaits phase 1 — one INSERT — and leaves the slow crystallize to
+// the background, where the nightly sweep rescues whatever the runtime kills.
+// That contract only holds if someone waits for phase 1. Every other caller
+// does (spill, saveSituation, createComment); the joke path alone fired this
+// with `void ... .catch(() => {})`, so on Workers the insert was abandoned the
+// moment the response went out and no signal was ever written. Awaiting costs
+// one insert on a path that has already done far more than that.
 async function ingestJokeSignal(userId: string, setId: string, text: string): Promise<void> {
-  const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
-  const { ingestMirrorSignal } = await import('./mirror-pipeline.functions')
-  await ingestMirrorSignal({
-    supabase: supabaseAdmin,
-    userId,
-    data: { source: 'joke', ref_id: setId, raw_text: text },
-  })
+  try {
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+    const { ingestMirrorSignal } = await import('./mirror-pipeline.functions')
+    await ingestMirrorSignal({
+      supabase: supabaseAdmin,
+      userId,
+      data: { source: 'joke', ref_id: setId, raw_text: text },
+    })
+  } catch (err) {
+    // The mirror is a side effect: it must never take down the card the
+    // reader is waiting on. Swallowed here, but never silently — a swallow
+    // with nothing logged is what hid this for two months.
+    console.error('[joke-mirror] ingest failed', { set_id: setId, err })
+  }
 }
 
 // ───────────────────── 4 · the export (what money buys) ─────────────────────
@@ -841,7 +856,7 @@ export const keepJokeCard = createServerFn({ method: 'POST' })
       judge_score: hold.judge_score ?? null,
     })
     if (!cardId) return { ok: false, reason: 'not_found', tier: id.tier }
-    void ingestJokeSignal(id.userId, hold.set_id, hold.text).catch(() => {})
+    await ingestJokeSignal(id.userId, hold.set_id, hold.text)
 
     return {
       ok: true,
@@ -993,7 +1008,7 @@ export const claimJokeSession = createServerFn({ method: 'POST' })
       )
     }
     if (claimed.length && data.hold?.[0]) {
-      void ingestJokeSignal(userId, data.hold[0].set_id, claimed.map((c) => c.text).join(' / ')).catch(() => {})
+      await ingestJokeSignal(userId, data.hold[0].set_id, claimed.map((c) => c.text).join(' / '))
     }
 
     return {
