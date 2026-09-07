@@ -74,15 +74,27 @@ function TopBar({ onBack }: { onBack: () => void }) {
   )
 }
 
-function planCardStyle(selected: boolean): CSSProperties {
+/** Annual is the plan the page leads with. It carries the tinted ground and
+ *  the stronger frame whether or not it is the one currently picked, so the
+ *  hierarchy reads before anyone clicks; selecting monthly outlines monthly
+ *  without ever making it look like the headline option. */
+function planCardStyle(selected: boolean, featured = false): CSSProperties {
+  const border = selected
+    ? `2px solid ${featured ? DEEP_ACCENT : ACCENT}`
+    : featured
+      ? '1.5px solid rgba(193,33,107,.42)'
+      : `1px solid ${HAIRLINE}`
   return {
-    border: selected ? `2px solid ${ACCENT}` : `1px solid ${HAIRLINE}`,
-    background: '#ffffff',
-    boxShadow: selected ? '0 12px 36px rgba(231,84,138,.20)' : '0 4px 16px rgba(27,15,22,.05)',
+    border,
+    background: featured ? 'linear-gradient(135deg,#fff3f8 0%,#ffffff 62%)' : '#ffffff',
+    boxShadow: selected
+      ? featured ? '0 18px 44px rgba(193,33,107,.22)' : '0 12px 36px rgba(231,84,138,.20)'
+      : featured ? '0 10px 30px rgba(193,33,107,.12)' : '0 4px 16px rgba(27,15,22,.05)',
     borderRadius: 18,
-    padding: '18px 20px',
+    padding: featured ? '22px 22px' : '16px 20px',
     cursor: 'pointer',
-    transition: 'border-color .18s ease, box-shadow .18s ease',
+    opacity: !selected && !featured ? 0.88 : 1,
+    transition: 'border-color .18s ease, box-shadow .18s ease, opacity .18s ease',
   }
 }
 
@@ -246,7 +258,7 @@ export function SubscribePage() {
             {/* plan cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24, ...fadeUp(0.1) }}>
               {/* annual — featured */}
-              <div role="button" tabIndex={0} onClick={() => selectPlan('annual')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') selectPlan('annual') }} style={planCardStyle(planKey === 'annual')}>
+              <div role="button" tabIndex={0} onClick={() => selectPlan('annual')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') selectPlan('annual') }} style={planCardStyle(planKey === 'annual', true)}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                   <span style={{ fontFamily: 'Sora, sans-serif', fontWeight: 700, fontSize: 14.5, color: INK }}>{PLAN_TO_PRICE.annual.label}</span>
                   <span style={{ fontFamily: 'Sora, sans-serif', fontSize: 9.5, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: '#fff', background: DEEP_ACCENT, borderRadius: 999, padding: '4px 10px' }}>
@@ -259,7 +271,7 @@ export function SubscribePage() {
                   <span style={{ fontFamily: 'Sora, sans-serif', fontWeight: 600, fontSize: 14, color: '#c4a3b2', textDecoration: 'line-through' }}>{usd(MONTHLY_TIMES_TWELVE)}</span>
                 </div>
                 <div style={{ fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: 13.5, color: MUTED }}>
-                  works out to {usd(ANNUAL_PER_MONTH)}/mo
+                  works out to {usd(ANNUAL_PER_MONTH)}/mo — about half the monthly price
                 </div>
               </div>
 
