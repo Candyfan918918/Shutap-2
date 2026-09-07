@@ -26,7 +26,10 @@ import {
 
 const ACTIVE_CAP = 40
 
-const Source = z.enum(['spill', 'scan', 'comments', 'likes', 'follows', 'browse'])
+/* Keep in step with the CHECK constraint on mirror_signals.source: a source
+   missing there is rejected by the database on insert and the enqueue fails
+   quietly, which is exactly how 'joke' went unnoticed. */
+const Source = z.enum(['spill', 'scan', 'comments', 'likes', 'follows', 'browse', 'joke'])
 type SourceT = z.infer<typeof Source>
 
 const IngestInput = z.object({
@@ -297,7 +300,7 @@ export async function crystallizeMirrorSignal(args: {
     }
     const district = normalizeDistrict(reading.trait.district)
     const initialSources: Record<SourceT, number> = {
-      spill: 0, scan: 0, comments: 0, likes: 0, follows: 0, browse: 0,
+      spill: 0, scan: 0, comments: 0, likes: 0, follows: 0, browse: 0, joke: 0,
     }
     initialSources[data.source] = 1
     const initialTrend = [0, 0, 0, 0, 0, 0, 1]

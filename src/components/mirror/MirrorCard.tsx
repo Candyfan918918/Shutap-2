@@ -27,7 +27,7 @@ const BORDER = 'var(--border)'
 const CARD_SHADOW = '0 10px 28px -22px rgba(60,10,30,.28)'
 
 const SOURCE_GLYPH: Record<string, string> = {
-  spill: '🗯', scan: '📸', comments: '💬', likes: '♥', follows: '✦', browse: '👁',
+  spill: '🗯', scan: '📸', comments: '💬', likes: '♥', follows: '✦', browse: '👁', joke: '🃏',
 }
 
 export type MirrorPatternView = {
@@ -121,7 +121,7 @@ function TrendChart({ trend, color }: { trend: number[]; color: string }) {
 }
 
 function SignalBar({ sources }: { sources: Record<string, number> }) {
-  const order = ['spill', 'scan', 'comments', 'likes', 'follows', 'browse']
+  const order = ['spill', 'scan', 'comments', 'likes', 'follows', 'browse', 'joke']
   const total = order.reduce((a, k) => a + Number(sources?.[k] ?? 0), 0)
   return (
     <div>
@@ -146,7 +146,7 @@ function SignalBar({ sources }: { sources: Record<string, number> }) {
         marginTop: 8, fontFamily: 'Sora, sans-serif', fontSize: 10,
         color: MUTED_3, letterSpacing: '.14em',
       }}>
-        SYNTHESIZED FROM {total} SIGNALS · 6 SURFACES
+        SYNTHESIZED FROM {total} SIGNALS · {order.length} SURFACES
       </div>
     </div>
   )

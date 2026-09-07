@@ -69,6 +69,7 @@ const SOURCE_GLYPH: Record<string, string> = {
   likes: '♥',
   follows: '✦',
   browse: '👁',
+  joke: '🃏',
 }
 const SOURCE_COLOR: Record<string, string> = {
   spill: '#a52a5f',
@@ -77,6 +78,9 @@ const SOURCE_COLOR: Record<string, string> = {
   likes: '#c1216b',
   follows: '#5B8A5E',
   browse: '#9a7bd0',
+  // the joke surface's own accent, lighter than spill's and likes' so the
+  // three pinks stay apart in the bar
+  joke: '#e7548a',
 }
 
 const DISTRICTS: District[] = ['self', 'career', 'love', 'family', 'social']
@@ -393,7 +397,7 @@ function TrendChart({ trend, color, animate }: { trend: number[]; color: string;
 
 /* ─────────────── signal bar ─────────────── */
 function SignalBar({ sources, animate, totalOverride }: { sources: Record<string, number>; animate: boolean; totalOverride?: number }) {
-  const order = ['spill', 'scan', 'comments', 'likes', 'follows', 'browse']
+  const order = ['spill', 'scan', 'comments', 'likes', 'follows', 'browse', 'joke']
   const bandTotal = order.reduce((a, k) => a + Number(sources?.[k] ?? 0), 0)
   const total = totalOverride ?? bandTotal
 
@@ -435,7 +439,7 @@ function SignalBar({ sources, animate, totalOverride }: { sources: Record<string
         marginTop: 6, fontFamily: "'Sora',sans-serif", fontSize: 9.5,
         color: MUTED_3, letterSpacing: '.20em',
       }}>
-        SYNTHESIZED FROM {total} SIGNALS · 6 SURFACES
+        SYNTHESIZED FROM {total} SIGNALS · {order.length} SURFACES
       </div>
     </div>
   )

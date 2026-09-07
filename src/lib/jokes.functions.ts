@@ -627,14 +627,26 @@ export const rerollJokeCard = createServerFn({ method: 'POST' })
   })
 
 // Mirror ingest — 🃏 Joke is its own shape, never folded into Spill.
+//
+// The payload is deliberately NOT cast. It used to go over as `as never`,
+// which silenced two type errors at once: 'joke' was not a known source, and
+// the card text was passed as `text` where the pipeline reads `raw_text`. The
+// result was a signal with no text, rejected outright by the CHECK constraint
+// on mirror_signals.source — so nothing was ever recorded. Left uncast, the
+// next field renamed on either side is a build error rather than a path that
+// silently stops working.
+//
+// `pre_scrubbed` is not set: a card is written by a model, so it goes through
+// the scrubber like any other text before it is embedded or stored, even
+// though the situation it came from was scrubbed already.
 async function ingestJokeSignal(userId: string, setId: string, text: string): Promise<void> {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
   const { ingestMirrorSignal } = await import('./mirror-pipeline.functions')
   await ingestMirrorSignal({
     supabase: supabaseAdmin,
     userId,
-    data: { source: 'joke', ref_id: setId, text },
-  } as never)
+    data: { source: 'joke', ref_id: setId, raw_text: text },
+  })
 }
 
 // ───────────────────── 4 · the export (what money buys) ─────────────────────
