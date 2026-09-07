@@ -30,7 +30,6 @@ import { useIsAdmin } from '@/hooks/use-current-alias'
 import { supabase } from '@/integrations/supabase/client'
 import { MirrorShareSheet } from '@/components/MirrorShareSheet'
 import { ActionPill } from '@/components/ShareChannels'
-import { JokeSurface } from '@/pages/home/joke/JokeSurface'
 
 
 // Demo cast is shown as an EXAMPLE to any forming account (display-only).
@@ -1235,8 +1234,8 @@ export function MirrorPage() {
       background: BG,
       color: INK,
     }}>
-      {/* the same core surface as `/` — joke cards, then the mirror read */}
-      <JokeSurface />
+      {/* Only the mirror reading lives here. The joke composer and the card
+          set list stay on `/` — this surface is the read alone. */}
       <main style={{ maxWidth: 1080, margin: '0 auto', padding: '36px 22px 80px' }}>
 
         {/* hero zone */}
