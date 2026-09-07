@@ -3,16 +3,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { Words } from '@/components/motion'
 import { getRouterRef } from '@/lib/router-ref'
+import { clearIntent, readIntent } from '@/lib/auth-guard'
 import { EyeMark, primaryBtn, SOFT, TEXT } from './shared'
 
 export interface WelcomeEnterStepProps {
   displayName: string
 }
 
-const PENDING_KEYS = ['shutap_pending_intent', 'shutap_pending_save', 'shutap_pending_comment', 'shutap_returnTo'] as const
+const PENDING_KEYS = ['shutap_pending_save', 'shutap_pending_comment', 'shutap_returnTo'] as const
 
 function hasPendingAction() {
   try {
+    // readIntent() drops an expired/malformed intent as a side effect, so a
+    // stale entry no longer counts as a pending action.
+    if (readIntent()) return true
     return PENDING_KEYS.some((key) => !!sessionStorage.getItem(key))
   } catch {
     return false
@@ -32,13 +36,9 @@ export function WelcomeEnterStep({ displayName }: WelcomeEnterStepProps) {
       else window.location.replace('/room?id=' + encodeURIComponent(roomId))
     }
     try {
-      const raw = sessionStorage.getItem('shutap_pending_intent')
-      if (raw) {
-        sessionStorage.removeItem('shutap_pending_intent')
-        const intent = JSON.parse(raw) as
-          | { kind: 'spill' } | { kind: 'scan' } | { kind: 'subscribe' }
-          | { kind: 'comment' | 'relate' | 'react'; roomId: string }
-          | { kind: 'custom'; url: string }
+      const intent = readIntent()
+      if (intent) {
+        clearIntent()
         if (intent.kind === 'spill') { goHash('spill'); return }
         if (intent.kind === 'scan') { goHash('scan'); return }
         if (intent.kind === 'subscribe') { goPath('/subscribe'); return }

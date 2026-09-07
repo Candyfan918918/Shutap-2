@@ -2,8 +2,9 @@
  *   auth (eager)  →  age (lazy)  →  alias (lazy)  →  welcome (lazy)
  * Later steps' code (and their server-fn imports for legal / alias /
  * welcome-email) is fetched only when the user reaches them. */
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/integrations/supabase/client'
+import { clearPendingAuthReturn } from '@/lib/auth-guard'
 import { useNoIndex } from '@/components/NoIndex'
 import { AuthStep } from './welcome/AuthStep'
 import { BG, TEXT, EyeMark, SOFT } from './welcome/shared'
@@ -54,6 +55,14 @@ export function WelcomeNativePage() {
   const [birth, setBirth] = useState<{ day: number; month: number; year: number }>({ day: 1, month: 1, year: new Date().getFullYear() - 30 })
   const [existingAlias, setExistingAlias] = useState<AliasResult | null>(null)
   const [finalAlias, setFinalAlias] = useState<AliasResult | null>(null)
+  const signedInRef = useRef(false)
+
+  // If the user leaves /welcome via in-app navigation without ever signing
+  // in, forget the captured intent / returnTo. Otherwise a scan or spill tap
+  // from hours ago would replay on the next unrelated sign-in in this tab.
+  // OAuth / magic-link hand-offs are full-page navigations, so this cleanup
+  // does not run for them and the intent survives the round trip.
+  useEffect(() => () => { if (!signedInRef.current) clearPendingAuthReturn() }, [])
 
   // On mount: only skip past the auth step when a REAL (non-anonymous) user
   // is signed in. Anonymous pseudonymous sessions must still see the auth sheet.
@@ -65,6 +74,7 @@ export function WelcomeNativePage() {
     const advanceForRealUser = async () => {
       if (advanced) return
       advanced = true
+      signedInRef.current = true
       setChecking(true)
       void import('@/lib/tracking').then((m) => m.trackEvent('sign_in_completed', {})).catch(() => {})
       // Lazy-import server-fn modules so cold /welcome doesn't ship them.

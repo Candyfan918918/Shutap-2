@@ -14,6 +14,7 @@ import { useNavigate } from '@/compat/router'
 import { useServerFn } from '@tanstack/react-start'
 import { saveSituation, listMySituations } from '@/lib/situations.functions'
 import { supabase } from '@/integrations/supabase/client'
+import { saveIntent } from '@/lib/auth-guard'
 import { CompanionEye } from '@/components/brand/CompanionEye'
 import { stripHTML, stripHTMLInline } from '@/lib/sanitize'
 
@@ -638,7 +639,7 @@ export function SpillModal({ open, onClose }: { open: boolean; onClose: () => vo
       const isAnon = Boolean((sess.session?.user as { is_anonymous?: boolean } | undefined)?.is_anonymous)
       if (!sess.session || isAnon) {
         sessionStorage.setItem('shutap_pending_save', JSON.stringify(payload))
-        sessionStorage.setItem('shutap_pending_intent', 'spill')
+        saveIntent({ kind: 'spill' })
         navigate('/welcome')
         return
       }
@@ -668,7 +669,7 @@ export function SpillModal({ open, onClose }: { open: boolean; onClose: () => vo
       if (msg.includes('sign_in_required')) {
         try {
           sessionStorage.setItem('shutap_pending_save', JSON.stringify(payload))
-          sessionStorage.setItem('shutap_pending_intent', 'spill')
+          saveIntent({ kind: 'spill' })
         } catch { /* noop */ }
         navigate('/welcome')
         return
