@@ -194,6 +194,14 @@ export const MEMBER_OFFER = {
   line: 'three situations a day, every set kept clean — no mark, print-size, the three in one tap — and the mirror reading the patterns across all of it.',
 }
 
+/** The one place the member ask is worded differently: the day's deck is
+ *  spent, so what they are reaching for is more jokes, not the mirror. Same
+ *  offer line underneath; the pill names the thing they just ran out of, and
+ *  it goes straight to checkout — no upgrade screen in between. */
+export const LIMIT_OFFER = {
+  cta: 'get more jokes',
+}
+
 /* ─────────────────────── the daily budget, as the client sees it ───────────────────────
    Resolved and enforced on the server; the browser only carries a copy so it
    can say "that's today's lot" the moment someone presses enter, instead of

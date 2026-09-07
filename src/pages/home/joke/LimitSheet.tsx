@@ -3,12 +3,14 @@
  * Goes up the moment someone presses enter on a spent day — before the spill
  * is sent anywhere, so no scrubber, classifier or writer runs for a set the
  * deal would only refuse. It says what the limit is, when it resets, and what
- * the next step buys: a guest is pointed at an alias (all three cards turned
- * over and kept, and the door to the members' deck), and everyone under
- * paying is shown the members' offer after that — three situations a day,
- * clean exports, the mirror — stated as what they are. A paying member is at
- * the top of that ladder, so their copy is a reset time and nothing else. */
-import { ALIAS_OFFER, MEMBER_OFFER, type JokeTier, type JokeUsage, type LimitReason } from '@/lib/jokes/deck'
+ * the next step buys: a guest is pointed at an alias (all three cards flipped
+ * and kept), and everyone under paying at "get more jokes" — the members'
+ * offer stated as what it is, three situations a day with the mirror reading
+ * across them — which goes straight to checkout. What they ran out of is
+ * jokes, so the pill says jokes; there is no upgrade screen between this
+ * sheet and paying. A paying member is at the top of that ladder, so their
+ * copy is a reset time and nothing else. */
+import { ALIAS_OFFER, LIMIT_OFFER, MEMBER_OFFER, type JokeTier, type JokeUsage, type LimitReason } from '@/lib/jokes/deck'
 import { Button, CompanionLine, Sheet, SORA, NEWS, INK, MUTED, FAINT, ACCENT } from './ui'
 
 export type LimitSheetReason = LimitReason | 'rate_limited'
@@ -60,17 +62,18 @@ export function LimitSheet({
   usage,
   onClose,
   onAlias,
-  onUpgrade,
+  onMore,
 }: {
   open: boolean
   tier: JokeTier
   reason: LimitSheetReason
   usage: JokeUsage | null
   onClose: () => void
-  /** guest → the alias gate, and the members' offer after it */
+  /** guest → the alias gate; the other two of today's set unlock behind it */
   onAlias: () => void
-  /** free → the members' offer */
-  onUpgrade: () => void
+  /** "get more jokes" → checkout, directly. A guest is asked for an alias on
+   *  the way, and lands on checkout after it. */
+  onMore: () => void
 }) {
   const { lead, body } = copy(tier, reason, usage)
   const throttled = reason === 'rate_limited'
@@ -106,11 +109,11 @@ export function LimitSheet({
         {!throttled && tier === 'guest' ? (
           <>
             <Button onClick={onAlias} full>{ALIAS_OFFER.cta}</Button>
-            <Button variant="secondary" onClick={onUpgrade} full>{MEMBER_OFFER.cta}</Button>
+            <Button variant="secondary" onClick={onMore} full>{LIMIT_OFFER.cta}</Button>
           </>
         ) : null}
         {!throttled && tier === 'free' ? (
-          <Button onClick={onUpgrade} full>{MEMBER_OFFER.cta}</Button>
+          <Button onClick={onMore} full>{LIMIT_OFFER.cta}</Button>
         ) : null}
         <Button variant="ghost" size="sm" onClick={onClose} full>
           {throttled ? 'okay' : tier === 'paying' ? 'okay — back tomorrow' : 'not now — keep reading'}
