@@ -192,7 +192,7 @@ export function SubscribePage() {
         <div style={fadeUp()}>
           <img src={eyeMascot} alt="" style={{ width: 38, height: 38, marginBottom: 14, display: 'block' }} />
           <h1 style={{ fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontWeight: 400, fontSize: 31, lineHeight: 1.25, margin: '0 0 10px', color: INK }}>
-            open the full mirror.
+            open the mirror reading.
           </h1>
           <p style={{ fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.55, color: MUTED, margin: '0 0 22px', maxWidth: '38ch' }}>
             every scan adds a brushstroke. the mirror holds the whole portrait.

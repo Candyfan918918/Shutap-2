@@ -56,7 +56,7 @@ html.home-scroll-snap {
 .home-immersive .chsec a[data-cta="scan"]:hover {
   background: #aaa3e8 !important;
 }
-/* chapter 03 "unlock the full mirror ✦" (gold pill inside .chsec) */
+/* chapter 03 "open the mirror reading ✦" (gold pill inside .chsec) */
 .home-immersive .chsec a[data-link="/welcome"][data-mag]:hover {
   background: #f7b8d4 !important;
 }

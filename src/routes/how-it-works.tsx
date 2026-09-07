@@ -21,19 +21,19 @@ const SECTIONS = [
   },
   {
     heading: "shutap writes three cards, face down",
-    body: "The take (what actually happened here), the clapback (what you wish you'd said) and the roast (the joke). They land face down, in a shuffled order, so the label is the only thing you choose by. Tap one to turn it over.",
+    body: "The take (what actually happened here), the clapback (what you wish you'd said) and the roast (the joke). They land face down, in a shuffled order, so the label is the only thing you choose by. Tap one to flip it.",
   },
   {
-    heading: "one situation a day is free \u2014 as a guest, one card of it",
-    body: "Guests get one situation a day and turn over one of its three cards. The other two stay face down, labelled, right where they are: you can see what they are, and turning them over takes an alias. The deck resets every day in your own timezone. When the day is spent, the box tells you so before it sends anything.",
+    heading: "one situation a day is free \u2014 as a guest, one flip of it",
+    body: "Guests get one situation a day and flip one of its three cards. The other two stay face down, labelled, right where they are: you can see what they are, and flipping them takes an alias. The deck resets every day in your own timezone. When the day is spent, the box tells you so before it sends anything.",
   },
   {
-    heading: "an alias turns over all three, and keeps them",
-    body: "A fake name, thirty seconds, no password: an alias turns over all three cards of your situation and keeps them in your set list and the Mirror's record. It is also what lets a card be saved, shared or posted. Free saves are 1080\u00d71920 with a small shutap mark in the corner.",
+    heading: "an alias flips all three, and keeps them",
+    body: "A fake name, thirty seconds, no password: an alias flips all three cards of your situation and keeps them in your set list and the Mirror's record. It is also what lets a card be saved, shared or posted. Free saves are 1080\u00d71920 with a small shutap mark in the corner.",
   },
   {
-    heading: "members get three a day, and the mirror",
-    body: "A membership buys room and pixels: three situations a day instead of one, exports with no mark at 2160\u00d73840, the whole set saved in one tap, and the Mirror reading the patterns across everything you keep. It never buys advice, and it never buys relief.",
+    heading: "members get three a day, and the mirror reading",
+    body: "A membership buys room and pixels: three situations a day instead of one, every set kept clean \u2014 no mark at 2160\u00d73840, the three saved in one tap \u2014 and the Mirror reading the patterns across everything you keep. It never buys advice, and it never buys relief.",
   },
   {
     heading: "the joke goes at the situation",

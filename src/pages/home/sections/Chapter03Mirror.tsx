@@ -31,7 +31,7 @@ export function Chapter03Mirror() {
                   </p>
                   {' '}
                   <a href="/welcome" data-link="/welcome" data-hover="" data-mag="" style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', fontFamily: '\'Sora\',sans-serif', fontWeight: '700', fontSize: '15px', color: '#100c14', background: '#c1a02b', borderRadius: '999px', padding: '16px 30px', transition: 'background .3s' }}>
-                    unlock the full mirror ✦
+                    open the mirror reading ✦
                   </a>
                   {' '}
                 </div>
@@ -595,7 +595,7 @@ export function Chapter03Mirror() {
                         </span>
                         {' '}
                         <span style={{ fontFamily: '\'Sora\',sans-serif', fontWeight: '700', fontSize: '11px', color: '#100c14', background: '#c1a02b', borderRadius: '999px', padding: '6px 12px', whiteSpace: 'nowrap' }}>
-                          unlock →
+                          open the mirror reading →
                         </span>
                         {' '}
                       </div>

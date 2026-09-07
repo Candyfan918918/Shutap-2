@@ -64,7 +64,7 @@ export function Chapter03Mirror() {
               cursor: 'pointer',
             }}
           >
-            unlock the full mirror ✦
+            open the mirror reading ✦
           </button>
         </div>
 
@@ -311,7 +311,7 @@ function LockBanner({ onUnlock }: { onUnlock: () => void }) {
           cursor: 'pointer',
         }}
       >
-        unlock →
+        open the mirror reading →
       </button>
     </div>
   )

@@ -116,7 +116,7 @@ export function AliasCeremony({
       </div>
 
       <Button onClick={() => void confirm()} disabled={!ready || busy} full>
-        {busy ? 'unlocking…' : 'this is me — unlock my cards'}
+        {busy ? 'one moment…' : 'this is me — flip all three'}
       </Button>
       <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 13.5, color: FAINT, textAlign: 'center' }}>
         lands you back on your cards, save and share live.
