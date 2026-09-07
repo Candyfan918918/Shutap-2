@@ -18,6 +18,7 @@ import { useNavigate } from '@/compat/router'
 import { useServerFn } from '@tanstack/react-start'
 import { saveSituation } from '@/lib/situations.functions'
 import { supabase } from '@/integrations/supabase/client'
+import { saveIntent } from '@/lib/auth-guard'
 import { ScanShareCard, type ScanRecord } from '@/components/ScanShareCard'
 import { CompanionEye } from '@/components/brand/CompanionEye'
 import { appendUserRoom } from './SpillModal'
@@ -703,7 +704,7 @@ export function ScanModal({ open, onClose }: { open: boolean; onClose: () => voi
       const isAnon = Boolean((sess.session?.user as { is_anonymous?: boolean } | undefined)?.is_anonymous)
       if (!sess.session || isAnon) {
         sessionStorage.setItem('shutap_pending_save', JSON.stringify(payload))
-        sessionStorage.setItem('shutap_pending_intent', 'scan')
+        saveIntent({ kind: 'scan' })
         navigate('/welcome')
         return
       }
@@ -731,7 +732,7 @@ export function ScanModal({ open, onClose }: { open: boolean; onClose: () => voi
       if (msg.includes('sign_in_required')) {
         try {
           sessionStorage.setItem('shutap_pending_save', JSON.stringify(payload))
-          sessionStorage.setItem('shutap_pending_intent', 'scan')
+          saveIntent({ kind: 'scan' })
         } catch { /* noop */ }
         navigate('/welcome')
         return

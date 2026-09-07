@@ -18,23 +18,41 @@ export type PendingIntent =
 const INTENT_KEY = 'shutap_pending_intent'
 const RETURN_KEY = 'shutap_returnTo'
 
+// An intent older than this is treated as abandoned. Magic-link sign-ins
+// complete well inside this window; anything older is a stale tab that
+// would otherwise replay (e.g. open the scan modal) on an unrelated login.
+const INTENT_MAX_AGE_MS = 60 * 60 * 1000
+
 export function saveIntent(intent: PendingIntent): void {
   try {
-    sessionStorage.setItem(INTENT_KEY, JSON.stringify(intent))
+    sessionStorage.setItem(INTENT_KEY, JSON.stringify({ ...intent, at: Date.now() }))
     sessionStorage.setItem(RETURN_KEY, window.location.href)
   } catch { /* noop */ }
 }
 
+/** Read the pending intent. Drops (and clears) malformed or expired entries. */
 export function readIntent(): PendingIntent | null {
   try {
     const raw = sessionStorage.getItem(INTENT_KEY)
     if (!raw) return null
-    return JSON.parse(raw) as PendingIntent
-  } catch { return null }
+    const parsed = JSON.parse(raw) as (PendingIntent & { at?: number }) | null
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.kind !== 'string') { clearIntent(); return null }
+    if (typeof parsed.at === 'number' && Date.now() - parsed.at > INTENT_MAX_AGE_MS) { clearIntent(); return null }
+    const { at: _at, ...intent } = parsed
+    return intent as PendingIntent
+  } catch { clearIntent(); return null }
 }
 
 export function clearIntent(): void {
   try { sessionStorage.removeItem(INTENT_KEY) } catch { /* noop */ }
+}
+
+/** Forget everything captured for a sign-in that the user walked away from. */
+export function clearPendingAuthReturn(): void {
+  try {
+    sessionStorage.removeItem(INTENT_KEY)
+    sessionStorage.removeItem(RETURN_KEY)
+  } catch { /* noop */ }
 }
 
 // Module-level cache of whether we have a real (non-anonymous) signed-in user.

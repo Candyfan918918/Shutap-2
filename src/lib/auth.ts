@@ -37,6 +37,8 @@ export async function signOut(): Promise<void> {
     sessionStorage.removeItem('shutap_authed')
     sessionStorage.removeItem('shutap_pending_save')
     sessionStorage.removeItem('shutap_pending_comment')
+    sessionStorage.removeItem('shutap_pending_intent')
+    sessionStorage.removeItem(RETURN_KEY)
   } catch { /* noop */ }
 }
 
