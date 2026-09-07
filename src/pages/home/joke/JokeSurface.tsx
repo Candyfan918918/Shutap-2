@@ -1013,13 +1013,18 @@ export function JokeSurface() {
         usage={usage}
         onClose={() => setLimit((l) => ({ ...l, open: false }))}
         onAlias={() => {
+          // The alias is the whole ask here: the other two of today's set
+          // unlock behind it, and nothing is sold on the way back.
           setLimit((l) => ({ ...l, open: false }))
-          raiseGate('limit', { type: 'upgrade' })
+          raiseGate('limit', { type: 'flip' })
         }}
-        onUpgrade={() => {
+        onMore={() => {
+          // Straight to checkout — what they ran out of is jokes, and the
+          // sheet has already said what a membership buys. A guest is asked
+          // for an alias first and lands on checkout after it.
           setLimit((l) => ({ ...l, open: false }))
-          jokeTrack('upgrade_shown', tier, { after: 'limit' })
-          setUpgradeOpen(true)
+          jokeTrack('checkout_from_limit', tier)
+          startCheckout()
         }}
       />
 
