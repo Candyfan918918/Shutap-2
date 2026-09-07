@@ -19,7 +19,8 @@ import { useServerFn } from '@tanstack/react-start'
 import { supabase } from '@/integrations/supabase/client'
 import {
   submitJokeEntry,
-  dealJokeCards,
+  openJokeDeal,
+  writeJokeCard,
   claimJokeSession,
   keepJokeCard,
   listMyJokeCards,
@@ -57,6 +58,7 @@ import { AliasCeremony, type CeremonyAlias } from './AliasCeremony'
 import { CardShareSheet } from './CardShareSheet'
 import { UpgradeSheet } from './UpgradeSheet'
 import { LimitSheet, type LimitSheetReason } from './LimitSheet'
+import { WipBand } from './WipBand'
 import { Button, CompanionLine, Eyebrow, SORA, NEWS, INK, MUTED, FAINT, ACCENT } from './ui'
 
 /** What the reader asked for when the alias gate went up, resumed afterwards.
@@ -78,7 +80,8 @@ const PRICE = usd(PLAN_TO_PRICE.monthly.amount)
 export function JokeSurface() {
   const navigate = useNavigate()
   const submit = useServerFn(submitJokeEntry)
-  const deal = useServerFn(dealJokeCards)
+  const openDeal = useServerFn(openJokeDeal)
+  const writeCard = useServerFn(writeJokeCard)
   const claim = useServerFn(claimJokeSession)
   const keep = useServerFn(keepJokeCard)
   const listCards = useServerFn(listMyJokeCards)
@@ -103,6 +106,11 @@ export function JokeSurface() {
   // cards are written. One uninterrupted move from the composer to the deck.
   const [phase, setPhase] = useState<'idle' | 'reading' | 'dealing'>('idle')
   const [dealFailed, setDealFailed] = useState(false)
+  /** Some of the three writes came back, some did not. The deck keeps what
+   *  landed; the slots that never will must stop being waited on. */
+  const [dealPartial, setDealPartial] = useState(false)
+  /** Seconds since the send, for the WIP band's clock and its copy ladder. */
+  const [elapsed, setElapsed] = useState(0)
   const [refusal, setRefusal] = useState<string | null>(null)
   /** Today's counter, as the server last reported it. Consulted before a
    *  spill is sent, so a spent day is answered from here without a round
@@ -128,6 +136,9 @@ export function JokeSurface() {
   const [resumeAt, setResumeAt] = useState(0)
   const pending = useRef<Pending | null>(null)
   const deckRef = useRef<HTMLDivElement | null>(null)
+  /** The band is the first thing to appear after the send, so the send scrolls
+   *  to it once — before the deck exists to scroll to. */
+  const wantWipScroll = useRef(false)
 
   const signedIn = tier !== 'guest'
   const spec = exportSpec(tier)
@@ -160,8 +171,10 @@ export function JokeSurface() {
     written,
     // A refused deal releases a card turned over early just as a jammed one
     // does — otherwise it stays parked on its edge, and the deck reads as two
-    // cards with a hole where the third should be.
-    failed: dealFailed || refusal !== null,
+    // cards with a hole where the third should be. A partial deal releases it
+    // for the same reason: the writes have all settled, so a slot still
+    // missing its card is never going to get one.
+    failed: dealFailed || dealPartial || refusal !== null,
     onFirstFlip: (slot, position) => jokeTrack('first_flip_slot', tier, { slot, position }),
     onReveal: (slot, position) => {
       const c = bySlot.get(slot)
@@ -190,6 +203,18 @@ export function JokeSurface() {
   }, [listCards, ctx])
 
   useEffect(() => { void refresh() }, [refresh])
+
+  /* The band's clock. It starts when the send does and runs until the last
+     card lands — deliberately keyed off "is anything happening" rather than
+     off `phase` itself, so the reading → dealing handover does not reset it
+     halfway through the one wait the reader is actually sitting through. */
+  const working = phase !== 'idle'
+  useEffect(() => {
+    if (!working) return
+    setElapsed(0)
+    const t = window.setInterval(() => setElapsed((n) => n + 1), 1000)
+    return () => window.clearInterval(t)
+  }, [working])
 
   // ─────────────────────── the alias gate, resumed ───────────────────────
 
@@ -310,7 +335,9 @@ export function JokeSurface() {
     setBusy(true)
     setRefusal(null)
     setDealFailed(false)
+    setDealPartial(false)
     setPhase('reading')
+    wantWipScroll.current = true
     let opened: { id: string; tier: JokeTier } | null = null
     try {
       const res = await submit({ data: { raw, ...ctx() } })
@@ -353,14 +380,20 @@ export function JokeSurface() {
 
   // ─────────────────────── the three cards ───────────────────────
 
-  /** Writes all three. Takes the id rather than reading `set`, because the
-   *  deal follows the spill inside one turn, before that state has committed. */
+  /** Opens the deal, then writes all three. Takes the id rather than reading
+   *  `set`, because the deal follows the spill inside one turn, before that
+   *  state has committed.
+   *
+   *  The three writes run concurrently — the same concurrency the bundled deal
+   *  had — but each lands in state on its own, which is what lets the WIP band
+   *  report a real count instead of a guess. */
   async function dealCards(setId: string) {
     setPhase('dealing')
     setRefusal(null)
     setDealFailed(false)
+    setDealPartial(false)
     try {
-      const res = await deal({ data: { set_id: setId, ...ctx() } })
+      const res = await openDeal({ data: { set_id: setId, ...ctx() } })
       if (!res.ok) {
         jokeTrack('deal_refused', res.tier, { reason: res.reason })
         setTier(res.tier)
@@ -378,9 +411,51 @@ export function JokeSurface() {
       }
       setTier(res.tier)
       setUsage(res.usage)
-      setCards(res.cards)
+
+      // A member's set that was already written comes back whole; there is
+      // nothing left to write and nothing to report progress on.
+      if (res.cards) {
+        setCards(res.cards)
+        jokeTrack('cards_dealt', res.tier, {
+          fallbacks: res.cards.filter((c) => c.used_fallback).length,
+        })
+        if (res.tier !== 'guest') void refresh()
+        return
+      }
+
+      const settled = await Promise.all(
+        res.angles.map((_angle, position) =>
+          writeCard({ data: { set_id: setId, position, ...ctx() } })
+            .then((r) => {
+              // Each card joins the deck the moment it lands, in slot order,
+              // so a back turned over early stops holding as soon as its own
+              // card exists rather than when the slowest of the three does.
+              // Merged by position rather than appended, so a re-deal of the
+              // same set replaces a slot instead of doubling it.
+              if (r.ok) {
+                setCards((prev) =>
+                  [...prev.filter((c) => c.position !== r.card.position), r.card]
+                    .sort((a, b) => a.position - b.position),
+                )
+              }
+              return r
+            })
+            .catch(() => null),
+        ),
+      )
+
+      const landed = settled.flatMap((r) => (r && r.ok ? [r.card] : []))
+      if (landed.length === 0) {
+        setDealFailed(true)
+        say('the deck jammed on that one. one more go?')
+        return
+      }
+      // Some of the three made it. The deck keeps them; the rest are released
+      // rather than left turning forever.
+      if (landed.length < res.angles.length) setDealPartial(true)
       jokeTrack('cards_dealt', res.tier, {
-        fallbacks: res.cards.filter((c) => c.used_fallback).length,
+        fallbacks: landed.filter((c) => c.used_fallback).length,
+        written: landed.length,
       })
       if (res.tier !== 'guest') void refresh()
     } catch {
@@ -542,16 +617,6 @@ export function JokeSurface() {
     return out.filter((g) => g.cards.length > 0)
   }, [list, set, deck.revealedSlots])
 
-  const dealingLine = useMemo(() => {
-    if (tier === 'paying') {
-      return "i have been waiting all week for one like this. writing your set now."
-    }
-    if (tier === 'free') {
-      return 'that one deserves a set. writing it now.'
-    }
-    return "okay, that's the bit that's getting me. writing you a set — a take, a clapback, and one light roast of the situation itself."
-  }, [tier])
-
   const hint = text.trim().length === 0
     ? ''
     : text.trim().length < 30
@@ -672,7 +737,30 @@ export function JokeSurface() {
         </div>
       </section>
 
-      {/* ══ 2 · crisis — support register only, and nothing else ══ */}
+      {/* ══ 2 · backstage — what the companion is doing while you wait ══
+          Mounts on the send and stays until the last card lands. It sits above
+          the deck rather than inside it because it starts before there is a
+          set to put it in: the spill is still being read at that point. */}
+      {phase !== 'idle' ? (
+        <WipBand
+          phase={phase}
+          written={written}
+          order={deck.order}
+          elapsed={elapsed}
+          bandRef={(el) => {
+            if (!el || !wantWipScroll.current) return
+            wantWipScroll.current = false
+            requestAnimationFrame(() =>
+              window.scrollTo({
+                top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - 88),
+                behavior: 'smooth',
+              }),
+            )
+          }}
+        />
+      ) : null}
+
+      {/* ══ 3 · crisis — support register only, and nothing else ══ */}
       {crisis ? (
         <section style={{ background: '#fff', padding: '0 clamp(16px,4vw,28px) clamp(40px,7vh,80px)' }}>
           <div style={{ maxWidth: 640, margin: '0 auto', background: '#fff', border: '1px solid rgba(137,0,65,.35)', borderRadius: 22, padding: '26px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -688,20 +776,16 @@ export function JokeSurface() {
         </section>
       ) : null}
 
-      {/* ══ 3 · the offer, then the three cards ══ */}
+      {/* ══ 4 · the offer, then the three cards ══ */}
       {set && !crisis ? (
         <section ref={deckRef} style={{ background: 'linear-gradient(180deg,#fff,rgba(16,12,20,.04))', padding: 'clamp(16px,3vh,36px) clamp(16px,4vw,28px) clamp(36px,6vh,72px)' }}>
           <CardBackStyles />
           <div style={{ maxWidth: 1000, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
             {/* The deck is the response to what they just typed, so there is no
-                header between the composer and it — only the companion, once,
-                while the writer works. */}
-            {phase === 'dealing' && cards.length === 0 ? (
-              <div style={{ maxWidth: 560 }}>
-                <CompanionLine>{dealingLine}</CompanionLine>
-              </div>
-            ) : null}
+                header between the composer and it. The companion's line while
+                the writer works lives in the band above — it used to be here
+                too, and saying it twice on one screen read as a stutter. */}
 
             {/* the set is open, so a jam is retried as a deal, never as a respill */}
             {dealFailed && phase === 'idle' && cards.length === 0 && set ? (
@@ -845,7 +929,7 @@ export function JokeSurface() {
         </section>
       ) : null}
 
-      {/* ══ 4 · the set list, and the one place the plan is mentioned unprompted ══ */}
+      {/* ══ 5 · the set list, and the one place the plan is mentioned unprompted ══ */}
       {signedIn && list.length > 0 ? (
         <section style={{ background: 'rgba(16,12,20,.04)', padding: '0 clamp(16px,4vw,28px) clamp(36px,6vh,72px)' }}>
           <div style={{ maxWidth: 1080, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>

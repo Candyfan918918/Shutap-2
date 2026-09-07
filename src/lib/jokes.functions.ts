@@ -271,15 +271,43 @@ export const submitJokeEntry = createServerFn({ method: 'POST' })
   })
 
 // ───────────────────── 2 · deal the three cards ─────────────────────
+//
+// The deal is two calls, not one, so the surface can report honest per-card
+// progress: `openJokeDeal` charges the day's counter and hands back the three
+// angles, then `writeJokeCard` writes one of them and the client runs the
+// three in parallel — the same concurrency the bundled deal had, with each
+// card arriving on its own instead of all three at the end.
+//
+// The charge cannot move into the per-card call. joke_flips is a
+// read-modify-write upsert: three concurrent writers would each read the same
+// counter and two of the three increments would be lost, so a set would be
+// generated three times and charged once. It stays where it was — one write,
+// three cards, before any model runs.
+//
+// What keeps a charged set from being written more than three times is
+// joke_deal_slots: a write claims its (set_id, position) row first, and the
+// primary key both caps the set at three cards forever and settles a race
+// between two writes at the same position. Without it a client could sit on
+// one position and spend model calls off the counter indefinitely.
 
-export type DealResult =
-  | { ok: true; cards: JokeCard[]; tier: JokeTier; cards_used: number; sets_used: number; usage: JokeUsage }
+export type OpenDealResult =
+  | {
+      ok: true
+      angles: string[]
+      /** Non-null only when the set was already written and is being handed
+       *  straight back; the client then skips the per-card writes. */
+      cards: JokeCard[] | null
+      tier: JokeTier
+      cards_used: number
+      sets_used: number
+      usage: JokeUsage
+    }
   | { ok: false; reason: 'not_found'; tier: JokeTier; usage?: JokeUsage }
   | { ok: false; reason: 'daily_cards' | 'daily_sets' | 'rate_limited'; tier: JokeTier; usage: JokeUsage }
 
-export const dealJokeCards = createServerFn({ method: 'POST' })
+export const openJokeDeal = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ set_id: z.string().uuid(), ...Ctx }).parse(d))
-  .handler(async ({ data }): Promise<DealResult> => {
+  .handler(async ({ data }): Promise<OpenDealResult> => {
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
     const id = await resolveJokeIdentity(data.anon_session_id ?? null)
     const { day, resetsAt } = await resolveDayInfo(supabaseAdmin, id.userId)
@@ -303,6 +331,7 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
         const counter = await readCounter(supabaseAdmin, id.subjectKey, day)
         return {
           ok: true,
+          angles,
           tier: id.tier,
           cards_used: counter.flips_used,
           sets_used: counter.sets_flipped,
@@ -337,64 +366,157 @@ export const dealJokeCards = createServerFn({ method: 'POST' })
       return { ok: false, reason: 'rate_limited', tier: id.tier, usage }
     }
 
-    await charge(supabaseAdmin, id.subjectKey, day, counter, 3, set.id as string)
-    const charged: JokeUsage = {
-      ...usage,
-      cards_used: counter.flips_used + 3,
+    // A re-open of a set already charged must not charge it twice — the whole
+    // three-card cost was taken the first time round.
+    if (!counted) {
+      await charge(supabaseAdmin, id.subjectKey, day, counter, 3, set.id as string)
+    }
+
+    return {
+      ok: true,
+      angles,
+      cards: null,
+      tier: id.tier,
+      cards_used: counted ? counter.flips_used : counter.flips_used + 3,
       sets_used: counted ? counter.sets_flipped : counter.sets_flipped + 1,
+      usage: {
+        ...usage,
+        cards_used: counted ? counter.flips_used : counter.flips_used + 3,
+        sets_used: counted ? counter.sets_flipped : counter.sets_flipped + 1,
+      },
     }
+  })
 
-    const situation = (set.clean_text as string) ?? ''
-    const archetype = (set.archetype as string) ?? 'general'
-    const lines = await Promise.all(
-      angles.map((angle) => generateLine({ angle, archetype, situation })),
-    )
+export type WriteCardResult =
+  | { ok: true; card: JokeCard; tier: JokeTier }
+  /** `not_open` — the set was never charged, so nothing may be written for it.
+   *  `already_written` — this slot has had its one card; the deal is spent. */
+  | { ok: false; reason: 'not_found' | 'not_open' | 'already_written'; tier: JokeTier }
 
-    const cards: JokeCard[] = []
-    for (let position = 0; position < 3; position++) {
-      const angle = angles[position]!
-      const out = lines[position]!
-      let cardId: string | null = null
-      // Members keep all three at the deal — they turn over all three. A free
-      // alias keeps only the one it turns over, written by keepJokeCard, so
-      // the two it never chose are never on file.
-      if (id.userId && id.tier === 'paying') {
-        cardId = await persistCard(supabaseAdmin, {
-          setId: set.id as string,
-          userId: id.userId,
-          position,
-          angle,
-          text: out.text,
-          used_fallback: out.used_fallback,
-          judge_score: out.judge_score,
-        })
+export const writeJokeCard = createServerFn({ method: 'POST' })
+  .inputValidator((d: unknown) =>
+    z.object({ set_id: z.string().uuid(), position: z.number().int().min(0).max(2), ...Ctx }).parse(d),
+  )
+  .handler(async ({ data }): Promise<WriteCardResult> => {
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+    const id = await resolveJokeIdentity(data.anon_session_id ?? null)
+    const day = await resolveDay(supabaseAdmin, id.userId)
+
+    const set = await loadOwnedSet(supabaseAdmin, data.set_id, id.userId, data.anon_session_id ?? null)
+    if (!set) return { ok: false, reason: 'not_found', tier: id.tier }
+    const angle = ((set.angles as string[]) ?? [])[data.position]
+    if (!angle) return { ok: false, reason: 'not_found', tier: id.tier }
+
+    // A member's set is already on file after the first write — hand the
+    // stored card back rather than spending a second model call on a retry.
+    if (id.tier === 'paying') {
+      const { data: existing } = await supabaseAdmin
+        .from('joke_cards')
+        .select('id, card_text, used_fallback, judge_score, created_at')
+        .eq('set_id', set.id)
+        .eq('position', data.position)
+        .maybeSingle()
+      if (existing?.id) {
+        return {
+          ok: true,
+          tier: id.tier,
+          card: toCard({
+            id: existing.id as string,
+            position: data.position,
+            angle,
+            text: existing.card_text as string,
+            used_fallback: !!existing.used_fallback,
+            judge_score: (existing.judge_score as number | null) ?? null,
+            day: String(existing.created_at).slice(0, 10),
+          }),
+        }
       }
-      cards.push(
-        toCard({
-          id: cardId,
-          position,
-          angle,
-          text: out.text,
-          used_fallback: out.used_fallback,
-          judge_score: out.judge_score,
-          day,
-        }),
-      )
     }
 
-    // The mirror hears what was actually read: a member reads all three, a
-    // free alias feeds it the one card it keeps (keepJokeCard).
+    // The set must have been charged by openJokeDeal. Without this a caller
+    // could skip the charge entirely and write cards straight off the model.
+    const counter = await readCounter(supabaseAdmin, id.subjectKey, day)
+    if (!counter.set_ids.includes(set.id as string)) {
+      return { ok: false, reason: 'not_open', tier: id.tier }
+    }
+
+    // Claim the slot before generating. ON CONFLICT DO NOTHING returns no row
+    // to whoever loses, so exactly one caller per slot ever reaches the model.
+    const { data: claimed } = await supabaseAdmin
+      .from('joke_deal_slots')
+      .upsert({ set_id: set.id as string, position: data.position } as never, {
+        onConflict: 'set_id,position',
+        ignoreDuplicates: true,
+      })
+      .select('position')
+      .maybeSingle()
+    if (!claimed) return { ok: false, reason: 'already_written', tier: id.tier }
+
+    // generateLine falls back to an authored line rather than failing, so a
+    // throw here means the gateway itself is down. The slot was claimed before
+    // the model ran, so it has to be given back — otherwise one blip leaves
+    // that card permanently unwritable and the set is stuck at two.
+    let out
+    try {
+      out = await generateLine({
+        angle,
+        archetype: (set.archetype as string) ?? 'general',
+        situation: (set.clean_text as string) ?? '',
+      })
+    } catch (err) {
+      await supabaseAdmin
+        .from('joke_deal_slots')
+        .delete()
+        .eq('set_id', set.id)
+        .eq('position', data.position)
+      throw err
+    }
+
+    // Members keep all three at the deal — they turn over all three. A free
+    // alias keeps only the one it turns over, written by keepJokeCard, so the
+    // two it never chose are never on file.
+    let cardId: string | null = null
     if (id.userId && id.tier === 'paying') {
-      void ingestJokeSignal(id.userId, set.id as string, cards.map((c) => c.text).join(' / ')).catch(() => {})
+      cardId = await persistCard(supabaseAdmin, {
+        setId: set.id as string,
+        userId: id.userId,
+        position: data.position,
+        angle,
+        text: out.text,
+        used_fallback: out.used_fallback,
+        judge_score: out.judge_score,
+      })
+
+      // The mirror hears the set once, whole, when the last of the three
+      // lands — the same single joined signal the bundled deal sent. Two
+      // writes finishing together can both see three rows; the ingest dedupes
+      // on (user, source, ref_id), so the extra call is a no-op.
+      const { data: all } = await supabaseAdmin
+        .from('joke_cards')
+        .select('card_text')
+        .eq('set_id', set.id)
+        .order('position', { ascending: true })
+      if (all && all.length >= 3) {
+        void ingestJokeSignal(
+          id.userId,
+          set.id as string,
+          all.map((r) => String(r.card_text)).join(' / '),
+        ).catch(() => {})
+      }
     }
 
     return {
       ok: true,
       tier: id.tier,
-      cards,
-      cards_used: charged.cards_used,
-      sets_used: charged.sets_used,
-      usage: charged,
+      card: toCard({
+        id: cardId,
+        position: data.position,
+        angle,
+        text: out.text,
+        used_fallback: out.used_fallback,
+        judge_score: out.judge_score,
+        day,
+      }),
     }
   })
 
@@ -505,14 +627,26 @@ export const rerollJokeCard = createServerFn({ method: 'POST' })
   })
 
 // Mirror ingest — 🃏 Joke is its own shape, never folded into Spill.
+//
+// The payload is deliberately NOT cast. It used to go over as `as never`,
+// which silenced two type errors at once: 'joke' was not a known source, and
+// the card text was passed as `text` where the pipeline reads `raw_text`. The
+// result was a signal with no text, rejected outright by the CHECK constraint
+// on mirror_signals.source — so nothing was ever recorded. Left uncast, the
+// next field renamed on either side is a build error rather than a path that
+// silently stops working.
+//
+// `pre_scrubbed` is not set: a card is written by a model, so it goes through
+// the scrubber like any other text before it is embedded or stored, even
+// though the situation it came from was scrubbed already.
 async function ingestJokeSignal(userId: string, setId: string, text: string): Promise<void> {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
   const { ingestMirrorSignal } = await import('./mirror-pipeline.functions')
   await ingestMirrorSignal({
     supabase: supabaseAdmin,
     userId,
-    data: { source: 'joke', ref_id: setId, text },
-  } as never)
+    data: { source: 'joke', ref_id: setId, raw_text: text },
+  })
 }
 
 // ───────────────────── 4 · the export (what money buys) ─────────────────────
