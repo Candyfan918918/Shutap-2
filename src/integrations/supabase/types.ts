@@ -532,6 +532,32 @@ export type Database = {
           },
         ]
       }
+      joke_deal_slots: {
+        Row: {
+          created_at: string
+          position: number
+          set_id: string
+        }
+        Insert: {
+          created_at?: string
+          position: number
+          set_id: string
+        }
+        Update: {
+          created_at?: string
+          position?: number
+          set_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "joke_deal_slots_set_id_fkey"
+            columns: ["set_id"]
+            isOneToOne: false
+            referencedRelation: "joke_sets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       joke_flips: {
         Row: {
           created_at: string
