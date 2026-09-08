@@ -409,10 +409,10 @@ export function JokeSurface() {
 
   function raiseGate(trigger: string, p: Pending) {
     pending.current = p
-    // Both sign-in paths are full-page round trips, so the deck and the thing
-    // they were reaching for are written down before the sheet goes up.
-    // /welcome honours this on its last step and sends them back here — true
-    // for every gate, including the ones that fire with no set open.
+    // Sign-in is a full-page round trip, so the deck and the thing they were
+    // reaching for are written down before the handoff to /welcome, which
+    // honours this on its last step and sends them back here — true for every
+    // gate, including the ones that fire with no set open.
     try { sessionStorage.setItem('shutap_returnTo', '/') } catch { /* noop */ }
     if (set) {
       const revealed = deck.revealedSlots.map((s) => s.key as string)
