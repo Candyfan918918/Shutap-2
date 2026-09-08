@@ -8,6 +8,7 @@ import { clearPendingAuthReturn } from '@/lib/auth-guard'
 import { useNoIndex } from '@/components/NoIndex'
 import { AuthStep } from './welcome/AuthStep'
 import { BG, TEXT, EyeMark, SOFT } from './welcome/shared'
+import { readJokePending } from './home/joke/jokeClient'
 import type { AliasResult } from './welcome/AliasStep'
 
 const AgeStep = lazy(() => import('./welcome/AgeStep'))
@@ -15,6 +16,43 @@ const AliasStep = lazy(() => import('./welcome/AliasStep'))
 const WelcomeEnterStep = lazy(() => import('./welcome/WelcomeEnterStep'))
 
 type Step = 'auth' | 'age' | 'alias' | 'welcome'
+
+/** What the alias buys, said at the door for anyone who arrived from the
+ *  joke deck with a card turned over: the two still face-down, kept, and
+ *  theirs to send. The page otherwise asks for a name with no reason given,
+ *  which is fine for someone who came to write and wrong for someone who was
+ *  mid-deck and got sent here. */
+function DeckBenefits() {
+  const lines = [
+    'the two cards still face-down flip — all three of every situation are yours',
+    'every card you flip is kept in your set list, under the situation it was written for',
+    'save, share, and post a card as a room — a fake name is all it takes',
+  ]
+  return (
+    <div
+      className="wstep"
+      style={{
+        marginBottom: 18, padding: '16px 18px', borderRadius: 16, textAlign: 'left',
+        background: 'rgba(231,84,138,.08)', border: '1px solid rgba(231,84,138,.28)',
+      }}
+    >
+      <div style={{ fontFamily: "'Newsreader',serif", fontStyle: 'italic', fontSize: 18, lineHeight: 1.35, color: '#f7b8d4', marginBottom: 10 }}>
+        your card is waiting. an alias flips the other two.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {lines.map((line) => (
+          <div key={line} style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+            <span aria-hidden style={{ color: '#e7548a', fontSize: 13, lineHeight: 1.5 }}>✓</span>
+            <span style={{ fontFamily: "'Sora',sans-serif", fontSize: 13, lineHeight: 1.5, color: TEXT }}>{line}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, fontFamily: "'Newsreader',serif", fontStyle: 'italic', fontSize: 13, color: SOFT }}>
+        thirty seconds, no real name, no password. reading what you already have stays free either way.
+      </div>
+    </div>
+  )
+}
 
 function StepFallback() {
   return (
@@ -48,6 +86,9 @@ export function WelcomeNativePage() {
   })()
   const [step, setStep] = useState<Step>(initialStep)
   const [authError, setAuthError] = useState<string | null>(null)
+  // Read once: the note is cleared by the landing page after the claim, not
+  // by anything here, so it is stable for the life of this ceremony.
+  const [fromDeck] = useState<boolean>(() => !!readJokePending())
   const [checking, setChecking] = useState<boolean>(looksLikeAuthCallback)
   const [ageBlocked, setAgeBlocked] = useState<boolean>(() => {
     try { return sessionStorage.getItem('shutap_age_rejected') === '1' } catch { return false }
@@ -209,6 +250,7 @@ export function WelcomeNativePage() {
           {checking && <StepFallback />}
           {!checking && step === 'auth' && (
             <>
+              {fromDeck ? <DeckBenefits /> : null}
               <AuthStep />
               {authError && (
                 <div style={{ marginTop: 12, color: '#ff8a8a', fontSize: 13, textAlign: 'center' }}>

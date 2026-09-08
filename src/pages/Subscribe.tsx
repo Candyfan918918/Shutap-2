@@ -8,6 +8,8 @@ import { getMyBillingStatus, type BillingStatus } from '@/lib/billing.functions'
 import { PLAN_TO_PRICE, usd, type PlanKey } from '@/lib/pricing'
 import { supabase } from '@/integrations/supabase/client'
 import { useNoIndex } from '@/components/NoIndex'
+import { AuthStep } from './welcome/AuthStep'
+import { readJokePending } from './home/joke/jokeClient'
 import eyeMascot from '@/assets/eye-mascot.svg'
 import stripeWordmark from '@/assets/stripe-wordmark.svg'
 
@@ -124,13 +126,31 @@ export function SubscribePage() {
     })
   }, [])
 
+  // A guest is not bounced away: the paywall is the page that says what a
+  // membership buys, so they read it here and sign in here, in the slot where
+  // checkout will appear. Sign-in itself still completes on /welcome (OAuth
+  // and the magic link both land there, and a new alias gets its ceremony),
+  // which then sends them straight back to the plan they were quoted.
   useEffect(() => {
     if (authed === false) {
-      // Come back to the plan they were quoted, not the homepage.
       try { sessionStorage.setItem('shutap_returnTo', `/subscribe?plan=${planKey}`) } catch { /* noop */ }
-      navigate('/welcome', { replace: true })
     }
-  }, [authed, planKey, navigate])
+  }, [authed, planKey])
+
+  // Signing in on this page (an OAuth popup, a code typed in) flips the slot
+  // from sign-in to checkout without a reload.
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      const user = session?.user as { is_anonymous?: boolean } | undefined
+      if (session && !user?.is_anonymous) setAuthed(true)
+    })
+    return () => sub.subscription.unsubscribe()
+  }, [])
+
+  /** A guest who came from the joke deck: the card they turned over is
+   *  written down and waiting on the landing page. Said once, so paying does
+   *  not feel like walking away from it. */
+  const cameFromDeck = typeof window !== 'undefined' && !!readJokePending()
 
   // Duplicate-subscription guard: if the user already has an active row,
   // stop rendering checkout and offer the portal instead.
@@ -209,6 +229,11 @@ export function SubscribePage() {
           <p style={{ fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.55, color: MUTED, margin: '0 0 22px', maxWidth: '38ch' }}>
             every scan adds a brushstroke. the mirror holds the whole portrait.
           </p>
+          {cameFromDeck ? (
+            <p style={{ fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: 14, lineHeight: 1.5, color: MUTED, margin: '-10px 0 22px', maxWidth: '38ch' }}>
+              your card is safe — it&apos;s waiting on the landing page, and the other two flip the moment you&apos;re back.
+            </p>
+          ) : null}
         </div>
 
         {/* what opens */}
@@ -322,6 +347,20 @@ export function SubscribePage() {
                 <div style={{ background: 'rgba(231,84,138,.08)', border: '1px solid rgba(231,84,138,.35)', borderRadius: 12, padding: 14, color: DEEP_ACCENT, fontSize: 13.5 }}>
                   {err}
                 </div>
+              ) : !authed ? (
+                /* the sign-in, in the slot checkout takes once they have one —
+                   the same google / apple / email step as /welcome, so a
+                   guest never has to leave the paywall to pay for it */
+                <div style={{ background: '#100c14', borderRadius: 16, padding: '22px 20px 18px', boxShadow: '0 14px 44px rgba(193,33,107,.16)' }}>
+                  <style>{`.oauth-btn:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.25)}`}</style>
+                  <div style={{ fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: 17, lineHeight: 1.4, color: '#f7e8f0', marginBottom: 4 }}>
+                    sign in to pay — a fake name comes with it.
+                  </div>
+                  <div style={{ fontFamily: 'Sora, sans-serif', fontSize: 12.5, lineHeight: 1.55, color: '#c4a0b2', marginBottom: 16 }}>
+                    thirty seconds, no real name. the membership lands on the alias you pick, and so does every card you keep.
+                  </div>
+                  <AuthStep />
+                </div>
               ) : (
                 <div style={{ background: '#ffffff', border: '1px solid rgba(27,15,22,.08)', borderRadius: 16, padding: '20px 18px', boxShadow: '0 14px 44px rgba(193,33,107,.10)' }}>
                   <EmbeddedCheckoutProvider key={plan.id} stripe={getStripe()} options={{ fetchClientSecret }}>
@@ -386,6 +425,16 @@ export function SubscribeReturnPage() {
     void check()
     return () => { cancelled = true }
   }, [sessionId, fetchStatus])
+
+  // Paid from the joke deck: land them back on their cards, not on a receipt.
+  // The landing page picks the note up, claims the set to the new alias and
+  // opens the deck on the card they had turned over — with all three theirs
+  // to flip now.
+  useEffect(() => {
+    if (state !== 'ok') return
+    if (!readJokePending()) return
+    navigate('/', { replace: true })
+  }, [state, navigate])
 
   async function openPortal() {
     setPortalBusy(true)

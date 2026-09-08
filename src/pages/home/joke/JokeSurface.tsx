@@ -407,14 +407,11 @@ export function JokeSurface() {
     return () => sub.subscription.unsubscribe()
   }, [claimAndResume])
 
-  function raiseGate(trigger: string, p: Pending) {
-    pending.current = p
-    // Sign-in is a full-page round trip, so the deck and the thing they were
-    // reaching for are written down before the handoff to /welcome, which
-    // honours this on its last step and sends them back here — true for every
-    // gate, including the ones that fire with no set open.
-    try { sessionStorage.setItem('shutap_returnTo', '/') } catch { /* noop */ }
-    if (set) {
+  /** Write the open set down before any full-page round trip — sign-in or
+   *  checkout — so the deck comes back exactly as it was left: the same three
+   *  cards, the same ones turned over, and the thing they were reaching for. */
+  function notePending(p: Pending) {
+    if (!set) return
       const revealed = deck.revealedSlots.map((s) => s.key as string)
       const asHeld = (c: JokeCard) => ({
         set_id: set.id,
@@ -431,7 +428,16 @@ export function JokeSurface() {
         revealed,
         action: 'position' in p ? { type: p.type, position: p.position } : { type: p.type },
       })
-    }
+  }
+
+  function raiseGate(trigger: string, p: Pending) {
+    pending.current = p
+    // Sign-in is a full-page round trip, so the deck and the thing they were
+    // reaching for are written down before the handoff to /welcome, which
+    // honours this on its last step and sends them back here — true for every
+    // gate, including the ones that fire with no set open.
+    try { sessionStorage.setItem('shutap_returnTo', '/') } catch { /* noop */ }
+    notePending(p)
     jokeTrack('alias_gate_shown', tier, { trigger })
     // No in-page sheet: the gate is /welcome itself, reached by a full page
     // load so the note and returnTo above are committed before the handoff.
@@ -791,16 +797,16 @@ export function JokeSurface() {
   }
 
   function startCheckout() {
-    if (!signedIn) {
-      // The upgrade sheet is a full-screen overlay; close it first so the
-      // alias/sign-in sheet is actually visible on top of the deck.
-      setUpgradeOpen(false)
-      raiseGate('checkout', { type: 'checkout' })
-      return
-    }
-    // Annual is the plan checkout opens on; monthly is a tap away on the page.
-    jokeTrack('checkout_started', tier, { lookup_key: 'mirror_annual' })
     setUpgradeOpen(false)
+    // Annual is the plan checkout opens on; monthly is a tap away on the page.
+    jokeTrack('checkout_started', tier, { lookup_key: 'mirror_annual', guest: !signedIn })
+    if (!signedIn) {
+      // A guest goes to the paywall itself, not to the alias gate: /subscribe
+      // says what a membership buys and takes the sign-in on the way to
+      // paying. The deck is written down first so it is waiting here, cards
+      // and all, when they come back — signed in, paid, or neither.
+      notePending({ type: 'flip' })
+    }
     void navigate({ to: '/subscribe', search: { plan: 'annual' } as never })
   }
 
@@ -1223,9 +1229,9 @@ export function JokeSurface() {
           raiseGate('limit', { type: 'flip' })
         }}
         onMore={() => {
-          // Straight to checkout — what they ran out of is jokes, and the
-          // sheet has already said what a membership buys. A guest is asked
-          // for an alias first and lands on checkout after it.
+          // Straight to the paywall — what they ran out of is jokes, and the
+          // sheet has already said what a membership buys. A guest signs in
+          // on the paywall itself, not at the alias gate.
           setLimit((l) => ({ ...l, open: false }))
           jokeTrack('checkout_from_limit', tier)
           startCheckout()
