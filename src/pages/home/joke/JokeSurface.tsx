@@ -662,21 +662,21 @@ export function JokeSurface() {
   }
 
   /** Getting the picture onto the device. An anchor download is right on a
-   *  desktop and on Android; on a phone that can share files it misses the
-   *  camera roll entirely, so the OS sheet does it — "save image", one tap. */
+   *  desktop and on Android, where it lands in Downloads. Only on iOS does it
+   *  miss the camera roll, so there the OS sheet does it — "save image". */
   async function deliver(blobs: NamedBlob[]): Promise<boolean> {
     const files = blobs.map(pngFile)
-    if (isTouchDevice() && canShareFiles(files)) {
-      try {
-        await navigator.share({ files })
-        return true
-      } catch (e) {
-        if (isShareAbort(e)) return false
-        openBlob(blobs[0]!.blob)
-        return true
+    if (isIOS()) {
+      if (canShareFiles(files)) {
+        try {
+          await navigator.share({ files })
+          return true
+        } catch (e) {
+          if (isShareAbort(e)) return false
+          openBlob(blobs[0]!.blob)
+          return true
+        }
       }
-    }
-    if (isTouchDevice() && !canShareFiles(files) && blobs.length === 1) {
       openBlob(blobs[0]!.blob)
       return true
     }
