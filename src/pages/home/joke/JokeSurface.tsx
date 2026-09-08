@@ -30,6 +30,7 @@ import {
 import {
   ALIAS_OFFER,
   ARCHETYPE_LABEL,
+  angleLabel,
   MEMBER_OFFER,
   exportSpec,
   usageBlock,
