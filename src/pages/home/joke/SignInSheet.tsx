@@ -2,15 +2,12 @@
 //
 // It stands in front of SAVING and SHARING, never in front of reading: all
 // three cards are readable before it, during it and after it. It asks for a
-// fake name, not for money, and it is a bottom sheet over the deck rather than
-// a route change, so nobody loses the cards they were reading.
+// name, not for money, and it uses the same sign-in the rest of the site does:
+// Google, Apple, or the email code on /welcome. The deck they were reading is
+// written down before they leave, and picked back up when they land again.
 import { useState } from 'react'
-import { supabase } from '@/integrations/supabase/client'
-import { sendMagicLink } from '@/lib/magic-link.functions'
-import { LEGAL_VERSION } from '@/lib/seo/legal'
-import { Button, Sheet, CompanionLine, SORA, NEWS, MUTED, ACCENT_SOFT, INK, FAINT } from './ui'
-
-const TERMS_VERSION = LEGAL_VERSION.terms
+import { startOAuth, type OAuthProvider } from '@/lib/oauth-signin'
+import { Button, Sheet, CompanionLine, SORA, NEWS, MUTED, INK, FAINT } from './ui'
 
 /** Why the gate went up — the companion says the true reason, not a generic one. */
 const SHEET_LEAD: Record<string, string> = {
@@ -24,14 +21,29 @@ const SHEET_LEAD: Record<string, string> = {
 }
 
 const SHEET_BODY: Record<string, string> = {
-  save: "reading is free forever. an alias is only so your set belongs to someone — 30 seconds, no real name, no password.",
-  share: "reading is free forever. an alias is only so your set belongs to someone — 30 seconds, no real name, no password.",
+  save: "reading is free forever. an alias is only so your set belongs to someone — 30 seconds, no real name.",
+  share: "reading is free forever. an alias is only so your set belongs to someone — 30 seconds, no real name.",
   post: 'nobody in a room ever sees who you are. the alias is the name they know you by, and it is not yours.',
-  keep: "reading is free forever. an alias is only so your set belongs to someone — 30 seconds, no real name, no password.",
-  checkout: 'the mirror reading lands in the same place your alias does. one link, then both.',
-  limit: "an alias flips all three cards of a situation and keeps them, and it is the door to the members' deck — three situations a day, every set kept clean, the mirror reading. a fake name — 30 seconds, no real name, no password.",
-  flip: "they're already written. an alias flips them and keeps all three in your set list — 30 seconds, no real name, no password.",
+  keep: "reading is free forever. an alias is only so your set belongs to someone — 30 seconds, no real name.",
+  checkout: 'the mirror reading lands in the same place your alias does. one door, then both.',
+  limit: "an alias flips all three cards of a situation and keeps them, and it is the door to the members' deck — three situations a day, every set kept clean, the mirror reading. 30 seconds, no real name.",
+  flip: "they're already written. an alias flips them and keeps all three in your set list — 30 seconds, no real name.",
 }
+
+const GOOGLE_G = (
+  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+    <path fill="#4285F4" d="M23.745 12.27c0-.79-.07-1.54-.19-2.27h-11.3v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" />
+    <path fill="#34A853" d="M12.255 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96h-3.98v3.09C3.515 21.3 7.615 24 12.255 24z" />
+    <path fill="#FBBC05" d="M5.525 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62h-3.98a11.86 11.86 0 000 10.76l3.98-3.09z" />
+    <path fill="#EA4335" d="M12.255 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C18.205 1.19 15.495 0 12.255 0c-4.64 0-8.74 2.7-10.71 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z" />
+  </svg>
+)
+
+const APPLE_MARK = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill={INK} aria-hidden>
+    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+  </svg>
+)
 
 export function SignInSheet({
   open,
@@ -42,44 +54,15 @@ export function SignInSheet({
   trigger: string
   onClose: () => void
 }) {
-  const [email, setEmail] = useState('')
-  const [ok18, setOk18] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [sent, setSent] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  async function send() {
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
-      setErr('that address did not look right. try again?')
-      return
-    }
-    if (!ok18) {
-      setErr('need the 18+ box ticked before i can make you an alias.')
-      return
-    }
-    setErr(null)
+  async function go(provider: OAuthProvider) {
     setBusy(true)
-    try {
-      try {
-        localStorage.setItem('shutap_terms', JSON.stringify({ version: TERMS_VERSION, at: new Date().toISOString() }))
-      } catch { /* noop */ }
-      const address = email.trim()
-      const redirectTo = window.location.href
-      // The link goes out in shutap's own design from hello@shutap.com. If that
-      // path is unavailable, Supabase's stock email still gets the alias made.
-      const branded = await sendMagicLink({ data: { email: address, redirectTo } }).catch(() => null)
-      if (!branded?.ok) {
-        if (branded?.error === 'rate_limited') { setErr('that is a lot of links. give the last one a minute?'); return }
-        const { error } = await supabase.auth.signInWithOtp({
-          email: address,
-          options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
-        })
-        if (error) { setErr('that did not send. try again in a moment?'); return }
-      }
-      setSent(true)
-    } finally {
-      setBusy(false)
-    }
+    setErr(null)
+    const message = await startOAuth(provider)
+    if (message) setErr(message)
+    setBusy(false)
   }
 
   return (
@@ -92,57 +75,36 @@ export function SignInSheet({
         {SHEET_BODY[trigger] ?? SHEET_BODY.keep}
       </CompanionLine>
 
-      {!sent ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-          <input
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="you@wherever.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') void send() }}
-            style={{
-              width: '100%', height: 48, borderRadius: 14, padding: '0 15px', fontSize: 16,
-              outline: 'none', background: '#fff', color: INK,
-              border: `2px solid ${ACCENT_SOFT}`,
-            }}
-          />
-          <label style={{ display: 'flex', gap: 9, alignItems: 'flex-start', fontFamily: SORA, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>
-            <input
-              type="checkbox"
-              checked={ok18}
-              onChange={(e) => setOk18(e.target.checked)}
-              style={{ marginTop: 3, width: 17, height: 17, accentColor: '#8e1c4c', flex: 'none' }}
-            />
-            <span>
-              i&apos;m 18 or over, and i accept the{' '}
-              <a href="/terms" target="_blank" rel="noreferrer" style={{ color: MUTED, textDecoration: 'underline', textUnderlineOffset: 2 }}>terms</a>
-              {' '}and{' '}
-              <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: MUTED, textDecoration: 'underline', textUnderlineOffset: 2 }}>privacy notice</a>.
-            </span>
-          </label>
-          {err ? (
-            <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 15, color: '#a8003f' }}>{err}</div>
-          ) : null}
-          <Button onClick={() => void send()} disabled={busy} full>
-            {busy ? 'sending…' : 'send me the link'}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onClose} full>
-            not now — keep reading
-          </Button>
-          <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 13.5, color: FAINT, textAlign: 'center' }}>
-            reading the cards stays free either way.
-          </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <Button variant="secondary" disabled={busy} onClick={() => void go('google')} full>
+          {GOOGLE_G} continue with Google
+        </Button>
+        <Button variant="secondary" disabled={busy} onClick={() => void go('apple')} full>
+          {APPLE_MARK} continue with Apple
+        </Button>
+        <a href="/welcome" style={{ textDecoration: 'none' }}>
+          <Button variant="ghost" size="sm" full>or sign in with email →</Button>
+        </a>
+
+        {err ? (
+          <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 15, color: '#a8003f' }}>{err}</div>
+        ) : null}
+
+        <Button variant="ghost" size="sm" onClick={onClose} full>
+          not now — keep reading
+        </Button>
+
+        <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 12.5, lineHeight: 1.55, color: FAINT, textAlign: 'center' }}>
+          18+ only · your real name is never attached to anything here
+          <br />
+          by continuing you agree to our{' '}
+          <a href="/terms" target="_blank" rel="noreferrer" style={{ color: MUTED, textDecoration: 'underline', textUnderlineOffset: 2 }}>terms</a>
+          {' '}and{' '}
+          <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: MUTED, textDecoration: 'underline', textUnderlineOffset: 2 }}>privacy notice</a>.
+          <br />
+          the cards you flipped stay right here either way.
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 11, alignItems: 'center', padding: '8px 0 4px' }}>
-          <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 17, color: '#2b2429', textAlign: 'center', lineHeight: 1.5 }}>
-            check your inbox — link&apos;s on its way from hello@shutap.com. open it on this device and your set is still right here.
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>close</Button>
-        </div>
-      )}
+      </div>
     </Sheet>
   )
 }
