@@ -51,7 +51,6 @@ import {
   openBlob,
   pngFile,
   readJokePending,
-  saveBlob,
   saveEach,
   svgToPng,
   writeJokePending,
@@ -92,6 +91,16 @@ type SetState = { id: string; situation: string; archetype: string }
 
 /** The price line the upgrade sheet quotes: annual first, monthly as the
  *  alternative — the same order the subscribe page leads with. */
+/** Where a saved picture is meant to end up, for the browsers that cannot hand
+ *  files to an app themselves. Opened after the file is on disk. */
+const SHARE_DEST: Record<string, string> = {
+  x: 'https://twitter.com/compose/post',
+  instagram: 'https://instagram.com',
+  tiktok: 'https://tiktok.com',
+  sms: 'sms:',
+  all: '',
+}
+
 const PRICE = `${usd(PLAN_TO_PRICE.annual.amount)} / year (${usd(PLAN_TO_PRICE.annual.amount / 12)}/mo) · or ${usd(PLAN_TO_PRICE.monthly.amount)} monthly`
 
 export function JokeSurface() {
@@ -174,6 +183,20 @@ export function JokeSurface() {
     return map
   }, [cards])
   const written = useMemo(() => new Set(bySlot.keys()), [bySlot])
+
+  /** The cards of the open situation that are turned over AND on file — the
+   *  ones "all N" means. */
+  const exportableIds = useMemo(() => {
+    const revealed = new Set(deckRevealed)
+    return cards.filter((c) => c.id && revealed.has(c.angle)).map((c) => c.id as string)
+  }, [cards, deckRevealed])
+
+  /** Whether the card an action is aimed at belongs to the open situation. A
+   *  card reached from the set list is on its own. */
+  const focusInSet = useMemo(
+    () => !!focus?.id && exportableIds.includes(focus.id),
+    [focus, exportableIds],
+  )
 
   const ctx = useCallback(
     // No timezone is sent: the server derives the day from stored state only.
