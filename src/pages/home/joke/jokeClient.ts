@@ -2,7 +2,7 @@
 // tier, the card text and the export size all come from the server. What
 // happens here is only rasterising, packaging and handing the file over.
 import { phCapture } from '@/lib/posthog'
-import type { JokeCard, JokeTier } from '@/lib/jokes/deck'
+import type { JokeTier } from '@/lib/jokes/deck'
 
 const ANON_KEY = 'shutap_anon_id'
 
@@ -183,6 +183,3 @@ export function readJokePending(): JokePending | null {
 export function clearJokePending(): void {
   try { localStorage.removeItem(PENDING_KEY) } catch { /* noop */ }
 }
-
-/** Unused here, but the card type keeps this module honest about its shape. */
-export type { JokeCard }

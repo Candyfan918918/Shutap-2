@@ -164,9 +164,9 @@ export const MEMBER_BENEFITS: { line: string; detail: string }[] = [
   { line: 'three situations a day, not one', detail: 'the deck resets every day in your own timezone.' },
   { line: 'exports with no shutap mark', detail: 'free cards carry a small mark in the corner; yours are clean.' },
   { line: '2160×3840 — print-size', detail: 'four times the pixels of a free export.' },
-  { line: 'save all three as a set', detail: 'one tap, one zip, the whole situation.' },
   { line: 'the mirror reading — what your situations keep saying', detail: 'everything you keep goes into a private record it reads patterns back from.' },
 ]
+
 
 /** What never costs anything, at any tier. */
 export const ALWAYS_FREE = [
