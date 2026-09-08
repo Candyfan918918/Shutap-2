@@ -455,7 +455,6 @@ export function JokeSurface() {
    *  There is no second button between the spill and the deck. */
   async function onSubmit() {
     const raw = text.trim()
-    console.log('DBG onSubmit', raw.length, phase, JSON.stringify(usage))
     if (raw.length < 12) { say('give me a few more words and i will find the funny in it.'); return }
     if (phase !== 'idle') return
     // A spent day is answered here, on enter, from the counter the server
