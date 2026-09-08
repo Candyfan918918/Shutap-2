@@ -346,17 +346,17 @@ export function mountImmersive(root: HTMLElement, hooks: ImmersiveHooks): () => 
     if (brand) brand.style.color = dark ? '#fdfbf9' : '#0b080f'
     navlinks.forEach((a) => { a.style.color = dark ? '#f7b8d4' : '#443c42' })
     if (hdr) {
+      // No backdrop-filter on purpose: a blurred fixed bar over the root
+      // scroller flashes white and ghosts a second header on Windows/Chrome
+      // during smooth scrolls. Near-opaque tint instead (same call as GlobalHeader).
       if (window.scrollY > 24) {
-        hdr.style.background = dark ? 'rgba(16,12,20,.72)' : 'rgba(253,240,245,.78)'
-        hdr.style.backdropFilter = 'blur(18px)'
-        ;(hdr.style as any).webkitBackdropFilter = 'blur(18px)'
+        hdr.style.background = dark ? 'rgba(16,12,20,.94)' : 'rgba(253,240,245,.96)'
         hdr.style.boxShadow = dark ? '0 1px 0 rgba(255,255,255,.08)' : '0 1px 0 rgba(11,8,15,.07)'
       } else {
         hdr.style.background = 'transparent'
-        hdr.style.backdropFilter = 'none'
-        ;(hdr.style as any).webkitBackdropFilter = 'none'
         hdr.style.boxShadow = 'none'
       }
+
     }
   }
   on(document, 'scroll', onScroll, { passive: true })

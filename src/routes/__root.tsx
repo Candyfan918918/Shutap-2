@@ -12,6 +12,10 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles/global.css?url";
+// Above-the-fold faces, preloaded so first paint does not swap typography.
+import soraBoldWoff2 from "@fontsource/sora/files/sora-latin-700-normal.woff2?url";
+import soraBlackWoff2 from "@fontsource/sora/files/sora-latin-800-normal.woff2?url";
+import newsreaderItalicWoff2 from "@fontsource/newsreader/files/newsreader-latin-400-italic.woff2?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { GlobalHeader } from "@/components/GlobalHeader";
 
@@ -107,6 +111,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
     ],
     links: [
+      { rel: "preload", as: "font", type: "font/woff2", href: soraBoldWoff2, crossOrigin: "anonymous" },
+      { rel: "preload", as: "font", type: "font/woff2", href: soraBlackWoff2, crossOrigin: "anonymous" },
+      { rel: "preload", as: "font", type: "font/woff2", href: newsreaderItalicWoff2, crossOrigin: "anonymous" },
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "icon", type: "image/png", sizes: "48x48", href: "/favicon-48.png" },

@@ -13,7 +13,7 @@
  *
  * The tier, the card text and the export size are all resolved on the server.
  * This component only draws what it is handed. */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { supabase } from '@/integrations/supabase/client'
@@ -172,6 +172,23 @@ export function JokeSurface() {
   /** The band is the first thing to appear after the send, so the send scrolls
    *  to it once — before the deck exists to scroll to. */
   const wantWipScroll = useRef(false)
+  /** The band's section as last painted, so the deck holds still when the
+   *  band leaves: the scroll position is pulled by the same height. */
+  const bandBox = useRef<{ top: number; height: number } | null>(null)
+  const prevPhase = useRef<'idle' | 'reading' | 'dealing'>('idle')
+
+  // The band unmounts on idle, and everything under it — the deck — would jump
+  // up by its height. Compensate before paint so the cards stay where they are.
+  useLayoutEffect(() => {
+    const was = prevPhase.current
+    prevPhase.current = phase
+    if (phase !== 'idle' || was === 'idle') return
+    const box = bandBox.current
+    bandBox.current = null
+    if (!box || box.top >= window.innerHeight) return
+    window.scrollBy({ top: -box.height, behavior: 'instant' })
+  }, [phase])
+
 
   const signedIn = tier !== 'guest'
   const spec = exportSpec(tier)
@@ -527,10 +544,8 @@ export function JokeSurface() {
       setSaved(null)
       setPostedAlias(null)
       opened = { id: res.set_id, tier: res.tier }
-      requestAnimationFrame(() => {
-        const el = deckRef.current
-        if (el) window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - 72), behavior: 'smooth' })
-      })
+      // No second scroll here: the send already scrolled to the band, and the
+      // deck mounts directly under it. Two smooth scrolls in flight read as a flash.
     } catch {
       say('that did not go through. try again?')
     } finally {
@@ -1030,7 +1045,11 @@ export function JokeSurface() {
           order={deck.order}
           elapsed={elapsed}
           bandRef={(el) => {
-            if (!el || !wantWipScroll.current) return
+            if (!el) return
+            const sec = el.closest('section') ?? el
+            const r = sec.getBoundingClientRect()
+            bandBox.current = { top: r.top, height: r.height }
+            if (!wantWipScroll.current) return
             wantWipScroll.current = false
             requestAnimationFrame(() =>
               window.scrollTo({
