@@ -3,9 +3,11 @@
 // The shape of the flow, and the reason it is shaped this way:
 //   · three cards, always — the take, the clapback, the roast. Everybody gets
 //     the same three. READING THEM IS FREE AT EVERY TIER, guests included.
-//   · the only wall a guest hits is the alias gate. A guest turns over ONE
-//     card; the other two stay face-down behind the alias, and it stands in
-//     front of saving and sharing too. Reading what you turned over is free.
+//   · the alias stands in front of the OTHER TWO cards, posting as a room and
+//     the set list. A guest turns over ONE card; the other two stay face-down
+//     behind the alias. SHARING AND SAVING ARE FREE AT EVERY TIER, guests
+//     included — a guest export renders at the free spec (1080×1920, marked)
+//     from the card their browser holds, since guest cards are never stored.
 //   · money buys pixels and room: no mark, print-size,
 //     three situations a day, the mirror's patterns. It never buys relief.
 //   · crisis overrides all of it — no cards, no gate, no paywall.
