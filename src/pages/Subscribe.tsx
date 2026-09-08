@@ -215,7 +215,7 @@ export function SubscribePage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 11, marginBottom: 28, ...fadeUp(0.06) }}>
           {[
             'three situations a day, not one — everything kept',
-            'exports with no shutap mark, print-size, the set in one tap',
+            'exports with no shutap mark, print-size 2160×3840',
             'patterns across your cards and scans — named',
             'your arc over time, with proof',
             "what others who've been here came through",
