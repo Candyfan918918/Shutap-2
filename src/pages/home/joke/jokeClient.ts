@@ -169,6 +169,11 @@ export type JokePending = {
   held: PendingHeld[]
   revealed: string[]
   action: { type: string; position?: number }
+  /** Where /welcome sends them once they have a name: the landing page for
+   *  the alias gate, the paywall for "get more jokes". Kept in the note —
+   *  which is localStorage — because sessionStorage is per tab, and a magic
+   *  link opened from email arrives in a fresh one with no memory of this. */
+  returnTo?: string
   at: number
 }
 

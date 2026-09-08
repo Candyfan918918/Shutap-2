@@ -55,6 +55,33 @@ export function clearPendingAuthReturn(): void {
   } catch { /* noop */ }
 }
 
+/* ── the durable return ──
+   RETURN_KEY is sessionStorage, which is per tab: a magic link opened from
+   the mail app lands in a fresh tab that has never heard of it, and /welcome
+   falls through to the stream. Pages that send someone away to sign in and
+   need them back — the paywall above all — also write the path here, in
+   localStorage, with a short life so an old one never replays. */
+const DURABLE_RETURN_KEY = 'shutap_returnTo_durable'
+const DURABLE_RETURN_MAX_AGE_MS = 60 * 60 * 1000
+
+export function setDurableReturn(path: string): void {
+  try { localStorage.setItem(DURABLE_RETURN_KEY, JSON.stringify({ path, at: Date.now() })) } catch { /* noop */ }
+}
+
+/** Read and clear it. Only same-origin paths ever come back. */
+export function takeDurableReturn(): string | null {
+  try {
+    const raw = localStorage.getItem(DURABLE_RETURN_KEY)
+    if (!raw) return null
+    localStorage.removeItem(DURABLE_RETURN_KEY)
+    const parsed = JSON.parse(raw) as { path?: string; at?: number } | null
+    if (!parsed?.path || typeof parsed.at !== 'number') return null
+    if (Date.now() - parsed.at > DURABLE_RETURN_MAX_AGE_MS) return null
+    if (!parsed.path.startsWith('/') || parsed.path.startsWith('//')) return null
+    return parsed.path
+  } catch { return null }
+}
+
 // Module-level cache of whether we have a real (non-anonymous) signed-in user.
 // null = unknown. Refreshed by onAuthStateChange so subsequent CTA clicks
 // decide synchronously without awaiting getSession.
