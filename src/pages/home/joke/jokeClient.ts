@@ -38,14 +38,10 @@ export function jokeTrack(name: string, tier: JokeTier, props: Record<string, un
   void phCapture(name, { ...props, tier })
 }
 
-/** The shareable link for a card — always the marked, story-size render. */
+/** The public link for a card. Kept for link previews; a share hands over the
+ *  picture itself, never this URL. */
 export function cardImageUrl(cardId: string): string {
   return `/api/public/joke-card?id=${encodeURIComponent(cardId)}`
-}
-
-/** The caption the share sheet opens with, ready to paste and free to edit. */
-export function defaultCaption(card: JokeCard): string {
-  return `“${card.text}”\n→ shutap.com`
 }
 
 // ───────────────────────── rasterising ─────────────────────────
@@ -86,90 +82,107 @@ export function saveBlob(blob: Blob, filename: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
-// ───────────────────────── the set, as one file ─────────────────────────
+// ───────────────────── handing the picture over ─────────────────────
 //
-// Members save all three in one tap, so the three PNGs are packed into a
-// single .zip. Stored, never deflated: the payload is already-compressed PNG,
-// so deflate would buy nothing and cost a dependency.
+// More than one card is more than one PNG — never an archive. A phone gets the
+// files through the OS sheet (where "save image" and every app live); anything
+// else gets ordinary downloads.
 
-const CRC_TABLE = (() => {
-  const t = new Uint32Array(256)
-  for (let n = 0; n < 256; n++) {
-    let c = n
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
-    t[n] = c >>> 0
-  }
-  return t
-})()
+export type NamedBlob = { name: string; blob: Blob }
 
-function crc32(bytes: Uint8Array): number {
-  let c = 0xffffffff
-  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]!) & 0xff]! ^ (c >>> 8)
-  return (c ^ 0xffffffff) >>> 0
+export function pngFile({ name, blob }: NamedBlob): File {
+  return new File([blob], name, { type: 'image/png' })
 }
 
-/** MS-DOS packed date/time, which is what a zip entry stores. */
-function dosStamp(d: Date): { time: number; date: number } {
-  return {
-    time: (d.getHours() << 11) | (d.getMinutes() << 5) | (Math.floor(d.getSeconds() / 2) & 0x1f),
-    date: ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate(),
+/** True when this browser can hand actual files to the OS share sheet. */
+export function canShareFiles(files: File[]): boolean {
+  if (typeof navigator === 'undefined' || !navigator.canShare || !navigator.share) return false
+  try {
+    return navigator.canShare({ files })
+  } catch {
+    return false
   }
 }
 
-export async function zipStored(files: { name: string; blob: Blob }[]): Promise<Blob> {
-  const encoder = new TextEncoder()
-  const stamp = dosStamp(new Date())
-  const locals: BlobPart[] = []
-  const central: BlobPart[] = []
-  let offset = 0
-
-  for (const file of files) {
-    const name = encoder.encode(file.name)
-    const bytes = new Uint8Array(await file.blob.arrayBuffer())
-    const crc = crc32(bytes)
-
-    const local = new DataView(new ArrayBuffer(30))
-    local.setUint32(0, 0x04034b50, true) // local file header
-    local.setUint16(4, 20, true) // version needed
-    local.setUint16(6, 0x0800, true) // UTF-8 names
-    local.setUint16(8, 0, true) // stored
-    local.setUint16(10, stamp.time, true)
-    local.setUint16(12, stamp.date, true)
-    local.setUint32(14, crc, true)
-    local.setUint32(18, bytes.length, true)
-    local.setUint32(22, bytes.length, true)
-    local.setUint16(26, name.length, true)
-    local.setUint16(28, 0, true) // no extra field
-    locals.push(local.buffer, name, bytes)
-
-    const entry = new DataView(new ArrayBuffer(46))
-    entry.setUint32(0, 0x02014b50, true) // central directory header
-    entry.setUint16(4, 20, true)
-    entry.setUint16(6, 20, true)
-    entry.setUint16(8, 0x0800, true)
-    entry.setUint16(10, 0, true)
-    entry.setUint16(12, stamp.time, true)
-    entry.setUint16(14, stamp.date, true)
-    entry.setUint32(16, crc, true)
-    entry.setUint32(20, bytes.length, true)
-    entry.setUint32(24, bytes.length, true)
-    entry.setUint16(28, name.length, true)
-    entry.setUint32(42, offset, true)
-    central.push(entry.buffer, name)
-
-    offset += 30 + name.length + bytes.length
-  }
-
-  const centralSize = central.reduce(
-    (n, part) => n + (part instanceof ArrayBuffer ? part.byteLength : (part as Uint8Array).length),
-    0,
-  )
-  const end = new DataView(new ArrayBuffer(22))
-  end.setUint32(0, 0x06054b50, true) // end of central directory
-  end.setUint16(8, files.length, true)
-  end.setUint16(10, files.length, true)
-  end.setUint32(12, centralSize, true)
-  end.setUint32(16, offset, true)
-
-  return new Blob([...locals, ...central, end.buffer], { type: 'application/zip' })
+/** A finger, not a mouse — the case where an anchor download misses Photos. */
+export function isTouchDevice(): boolean {
+  if (typeof window === 'undefined') return false
+  return (navigator.maxTouchPoints ?? 0) > 0 || 'ontouchstart' in window
 }
+
+/** The user closing the OS sheet is not a failure. */
+export function isShareAbort(e: unknown): boolean {
+  return e instanceof Error && (e.name === 'AbortError' || /abort|cancel/i.test(e.message))
+}
+
+/** Saves each file as its own download, with a gap so browsers keep all of
+ *  them instead of swallowing every click after the first. */
+export async function saveEach(files: NamedBlob[]): Promise<void> {
+  for (let i = 0; i < files.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 300))
+    saveBlob(files[i]!.blob, files[i]!.name)
+  }
+}
+
+/** Last resort on a phone with no file sharing: the picture itself, in a tab,
+ *  where a long press reaches the camera roll. */
+export function openBlob(blob: Blob): void {
+  const url = URL.createObjectURL(blob)
+  window.open(url, '_blank')
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+// ────────────── the deck a guest left behind at the sign-in gate ──────────────
+//
+// Signing in is a full-page round trip through /welcome, so the cards they had
+// turned over and the thing they were reaching for are written down first and
+// picked back up on return.
+
+const PENDING_KEY = 'shutap_joke_pending'
+const PENDING_TTL = 24 * 60 * 60 * 1000
+
+export type PendingHeld = {
+  set_id: string
+  position: number
+  angle: string
+  text: string
+  used_fallback?: boolean
+  judge_score?: number | null
+}
+
+export type JokePending = {
+  set: { id: string; situation: string; archetype: string }
+  held: PendingHeld[]
+  revealed: string[]
+  action: { type: string; position?: number }
+  at: number
+}
+
+export function writeJokePending(p: Omit<JokePending, 'at'>): void {
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify({ ...p, at: Date.now() }))
+  } catch { /* noop */ }
+}
+
+export function readJokePending(): JokePending | null {
+  try {
+    const raw = localStorage.getItem(PENDING_KEY)
+    if (!raw) return null
+    const p = JSON.parse(raw) as JokePending
+    if (!p?.set?.id || !Array.isArray(p.held)) return null
+    if (!Number.isFinite(p.at) || Date.now() - p.at > PENDING_TTL) {
+      clearJokePending()
+      return null
+    }
+    return p
+  } catch {
+    return null
+  }
+}
+
+export function clearJokePending(): void {
+  try { localStorage.removeItem(PENDING_KEY) } catch { /* noop */ }
+}
+
+/** Unused here, but the card type keeps this module honest about its shape. */
+export type { JokeCard }
