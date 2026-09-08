@@ -736,15 +736,23 @@ export function JokeSurface() {
     return true
   }
 
+  /** Saving is free at every tier, guests included. A signed-in card is
+   *  rendered from its stored row; a guest's is rendered from the card the
+   *  browser is holding, at the free spec with the mark. No gate either way. */
   async function doSave(target: JokeCard | null) {
     if (!target) return
-    if (!signedIn) { raiseGate('save', { type: 'save', position: target.position }); return }
-    target = await ensureKept(target)
-    if (!target.id) { raiseGate('save', { type: 'save', position: target.position }); return }
     setFocus(target)
     setSaving(true)
     try {
-      const { res, blobs } = await renderPngs({ card_id: target.id })
+      let query: ExportQuery
+      if (signedIn) {
+        target = await ensureKept(target)
+        if (!target.id) throw new Error('no image')
+        query = { card_id: target.id }
+      } else {
+        query = { cards: [heldOf(target)] }
+      }
+      const { res, blobs } = await renderPngs(query)
       if (blobs.length === 0) throw new Error('no image')
       const done = await deliver([blobs[0]!])
       if (!done) return
@@ -761,10 +769,11 @@ export function JokeSurface() {
    *  each, never an archive. */
   async function doSaveSet() {
     if (!set) return
-    if (!signedIn) { raiseGate('save', { type: 'saveSet' }); return }
     setSaving(true)
     try {
-      const { res, blobs } = await renderPngs({ set_id: set.id })
+      const { res, blobs } = await renderPngs(
+        signedIn ? { set_id: set.id } : { cards: guestExportable.map(heldOf) },
+      )
       if (blobs.length === 0) throw new Error('no image')
       if (blobs.length === 1) { await doSave(focus ?? cards[0] ?? null); return }
       const done = await deliver(blobs)
@@ -780,16 +789,23 @@ export function JokeSurface() {
 
   /** Sharing hands over the picture and nothing else — no caption, no link.
    *  On a phone that is the OS sheet, where X, Instagram, TikTok and Messages
-   *  all live; anywhere else the file saves and the destination opens. */
+   *  all live; anywhere else the file saves and the destination opens. Free at
+   *  every tier, guests included. */
   async function doShare(channel: string, all: boolean) {
     const target = focus
-    if (!signedIn) { raiseGate('share', { type: 'share', position: target?.position ?? 0 }); return }
-    if (!all && !target?.id) return
+    if (!all && !target) return
+    if (!all && signedIn && !target?.id) return
     setSaving(true)
     try {
-      const { res, blobs } = all && set
-        ? await renderPngs({ set_id: set.id })
-        : await renderPngs({ card_id: target!.id! })
+      let query: ExportQuery
+      if (all && set) {
+        query = signedIn ? { set_id: set.id } : { cards: guestExportable.map(heldOf) }
+      } else if (signedIn) {
+        query = { card_id: target!.id! }
+      } else {
+        query = { cards: [heldOf(target!)] }
+      }
+      const { res, blobs } = await renderPngs(query)
       if (blobs.length === 0) throw new Error('no image')
       const files = blobs.map(pngFile)
       if (canShareFiles(files)) {
@@ -817,10 +833,11 @@ export function JokeSurface() {
   async function openShare(target: JokeCard | null) {
     if (!target) return
     // Never hidden, never disabled, never asterisked — a guest gets the sheet
-    // at the moment they reach for it, and keeps the card either way.
-    if (!signedIn) { raiseGate('share', { type: 'share', position: target.position }); return }
-    target = await ensureKept(target)
-    if (!target.id) { raiseGate('share', { type: 'share', position: target.position }); return }
+    // at the moment they reach for it, and the picture with it.
+    if (signedIn) {
+      target = await ensureKept(target)
+      if (!target.id) return
+    }
     jokeTrack('card_shared', tier, { slot: target.angle })
     setFocus(target)
     setShareOpen(true)
