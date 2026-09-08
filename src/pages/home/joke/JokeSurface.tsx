@@ -42,11 +42,21 @@ import {
 import { PLAN_TO_PRICE, usd } from '@/lib/pricing'
 import {
   anonSessionId,
+  canShareFiles,
   clearAnonSessionId,
+  clearJokePending,
+  isShareAbort,
+  isTouchDevice,
   jokeTrack,
-  svgToPng,
+  openBlob,
+  pngFile,
+  readJokePending,
   saveBlob,
-  zipStored,
+  saveEach,
+  svgToPng,
+  writeJokePending,
+  type JokePending,
+  type NamedBlob,
 } from './jokeClient'
 import { CardFace } from './CardFace'
 import { CardBack, CardBackStyles } from './CardBack'
@@ -141,7 +151,13 @@ export function JokeSurface() {
   const [gate, setGate] = useState<{ open: boolean; trigger: string }>({ open: false, trigger: 'save' })
   const [toast, setToast] = useState<string | null>(null)
   const [resumeAt, setResumeAt] = useState(0)
+  /** Slots a guest had turned over before the sign-in round trip. Set before
+   *  the restored set, so the deck comes back open on exactly those cards. */
+  const [restored, setRestored] = useState<ReadonlySet<string> | null>(null)
   const pending = useRef<Pending | null>(null)
+  /** One claim per return, whichever path notices the session first. */
+  const claimRan = useRef(false)
+  const bootRan = useRef(false)
   const deckRef = useRef<HTMLDivElement | null>(null)
   /** The band is the first thing to appear after the send, so the send scrolls
    *  to it once — before the deck exists to scroll to. */
@@ -176,6 +192,7 @@ export function JokeSurface() {
     seed: set?.id ?? 'empty',
     tier,
     written,
+    preRevealed: restored ?? undefined,
     // A refused deal releases a card turned over early just as a jammed one
     // does — otherwise it stays parked on its edge, and the deck reads as two
     // cards with a hole where the third should be. A partial deal releases it
@@ -244,63 +261,106 @@ export function JokeSurface() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeAt])
 
-  /** Sign-in lands back on this page. Claim the guest session, then resume. */
-  const claimAndResume = useCallback(async () => {
+  /** Sign-in lands back on this page — same tab, or a full round trip through
+   *  /welcome. Either way: wait for a REAL session, claim the guest set with
+   *  the cards they were holding, put the deck back, then resume what they
+   *  were reaching for. Runs at most once per return. */
+  const claimAndResume = useCallback(async (stored?: JokePending | null) => {
+    if (claimRan.current) return
     // Whatever they had turned over as a guest rides along, so the gate costs
     // them none of it. Only what was turned over: the two still face-down are
     // written when they turn them — which, with an alias, they now can.
     const revealed = new Set(deck.revealedSlots.map((s) => s.key as string))
-    const held = set
-      ? cards
-          .filter((c) => !c.id && revealed.has(c.angle))
-          .map((c) => ({
-            set_id: set.id,
-            position: c.position,
-            angle: c.angle,
-            text: c.text,
-            used_fallback: c.used_fallback,
-            judge_score: c.judge_score,
-          }))
-      : []
+    const held = stored
+      ? stored.held
+      : set
+        ? cards
+            .filter((c) => !c.id && revealed.has(c.angle))
+            .map((c) => ({
+              set_id: set.id,
+              position: c.position,
+              angle: c.angle,
+              text: c.text,
+              used_fallback: c.used_fallback,
+              judge_score: c.judge_score,
+            }))
+        : []
     try {
       // The app also has a background anonymous auth session. Wait for an
-      // actual email-authenticated user, not merely any access token.
+      // actual authenticated user, not merely any access token.
       let realSession = false
       for (let i = 0; i < 12 && !realSession; i++) {
         const session = (await supabase.auth.getSession()).data.session
         realSession = !!session?.access_token && session.user.is_anonymous !== true
         if (!realSession) await new Promise((r) => setTimeout(r, 250))
       }
+      // No session: they came back without signing in. Leave the note where
+      // it is, say nothing, and let them read on.
       if (!realSession) return
+      claimRan.current = true
       const res = await claim({ data: { ...ctx(), hold: held } })
       // The anonymous bootstrap session can still reach here; the server
       // refuses it in kind rather than throwing, and there is nothing to claim.
-      if (!res.ok) return
+      if (!res.ok) { claimRan.current = false; return }
       setTier(res.tier)
       clearAnonSessionId()
       if (res.alias) setAlias(res.alias)
       if (res.claimed.length) {
         jokeTrack('guest_cards_claimed', res.tier, { n: res.claimed.length })
+      }
+      jokeTrack('signin_completed', res.tier, { alias_is_new: res.alias_is_new })
+
+      if (stored) {
+        // Came back from /welcome: the page is fresh, so the situation, the
+        // cards they had read and the pending action all come from the note.
+        clearJokePending()
+        setRestored(new Set(stored.revealed))
+        setCrisis(false)
+        setSet(stored.set)
+        setCards(res.claimed.length ? res.claimed : [])
+        setSaved(null)
+        setPostedAlias(null)
+        pending.current = (stored.action.type === 'save' || stored.action.type === 'share' || stored.action.type === 'post')
+          ? { type: stored.action.type, position: stored.action.position ?? 0 } as Pending
+          : ({ type: stored.action.type } as Pending)
+        // The remaining face-down cards are written now — the set is already
+        // counted in the merged counter, so nothing is charged twice.
+        await dealCards(stored.set.id)
+      } else if (res.claimed.length) {
         setCards((prev) =>
           prev.map((c) => res.claimed.find((k) => k.position === c.position) ?? c),
         )
       }
-      jokeTrack('signin_completed', res.tier, { alias_is_new: res.alias_is_new })
       await refresh()
 
       // A brand-new alias gets its ceremony; a returning one goes straight
-      // back to whatever they were doing.
+      // back to whatever they were doing. Anyone who came through /welcome
+      // already picked a name there, so this is normally skipped.
       if (res.alias_is_new) setCeremonyOpen(true)
       else setResumeAt((n) => n + 1)
     } catch { /* leave them signed in without a claim */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [claim, ctx, cards, set, refresh, deck.revealedSlots])
+
+  /* A guest who signed in through /welcome lands here on a cold page. The note
+     they left is picked up once, after the first read of their identity. */
+  useEffect(() => {
+    if (bootRan.current) return
+    bootRan.current = true
+    void (async () => {
+      const note = readJokePending()
+      if (!note) return
+      await claimAndResume(note)
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       // Anonymous bootstrap also emits SIGNED_IN. Only a real account may
       // claim guest sets/cards or resume a blocked action.
       if (event === 'SIGNED_IN' && session?.user.is_anonymous !== true) {
-        void claimAndResume()
+        void claimAndResume(readJokePending())
       }
     })
     return () => sub.subscription.unsubscribe()
@@ -308,6 +368,28 @@ export function JokeSurface() {
 
   function raiseGate(trigger: string, p: Pending) {
     pending.current = p
+    // Both sign-in paths are full-page round trips, so the deck and the thing
+    // they were reaching for are written down before the sheet goes up.
+    if (set) {
+      const revealed = deck.revealedSlots.map((s) => s.key as string)
+      writeJokePending({
+        set: set,
+        held: cards
+          .filter((c) => !c.id && revealed.includes(c.angle))
+          .map((c) => ({
+            set_id: set.id,
+            position: c.position,
+            angle: c.angle,
+            text: c.text,
+            used_fallback: c.used_fallback,
+            judge_score: c.judge_score,
+          })),
+        revealed,
+        action: 'position' in p ? { type: p.type, position: p.position } : { type: p.type },
+      })
+      // /welcome honours this on its last step and sends them back here.
+      try { sessionStorage.setItem('shutap_returnTo', '/') } catch { /* noop */ }
+    }
     setGate({ open: true, trigger })
     jokeTrack('alias_gate_shown', tier, { trigger })
   }
