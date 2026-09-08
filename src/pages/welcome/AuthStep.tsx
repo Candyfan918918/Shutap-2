@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { Words } from '@/components/motion'
 import { supabase } from '@/integrations/supabase/client'
 import { sendMagicLink } from '@/lib/magic-link.functions'
-import { lovable } from '@/integrations/lovable'
+import { startOAuth } from '@/lib/oauth-signin'
 import { EyeMark, oauthBtn, ACCENT, TEXT, SOFT, MUTED, type Msg } from './shared'
 
 function splitName(raw: string): { first_name: string; last_name: string | null; full_name: string } {
@@ -27,23 +27,10 @@ export function AuthStep() {
     void import('@/lib/tracking').then((m) => m.trackEvent(name, props)).catch(() => {})
   }
 
+  // Shared with the joke-card sign-in sheet so the two cannot drift.
   const runOAuth = async (provider: 'google' | 'apple') => {
-    track('sign_in_started', { method: provider })
-    try {
-      const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: window.location.origin + '/welcome' })
-      if (result.error) {
-        const text = result.error.message || 'sign-in failed — please try again'
-        setMsg({ kind: 'err', text })
-        track('sign_in_failed', { method: provider, reason: text })
-        return
-      }
-      if (result.redirected) return
-      track('sign_in_provider_ok', { method: provider })
-    } catch (e) {
-      const text = e instanceof Error ? e.message : 'sign-in failed — please try again'
-      setMsg({ kind: 'err', text })
-      track('sign_in_failed', { method: provider, reason: text })
-    }
+    const message = await startOAuth(provider)
+    if (message) setMsg({ kind: 'err', text: message })
   }
 
   const doOAuth = (provider: 'google' | 'apple') => {

@@ -31,6 +31,9 @@ export function useDeck({
   /** Which slots have their text yet. A flip started before its card is
    *  written waits at the edge for this to include it. */
   written,
+  /** Slots that were already turned over before this deck mounted — a guest's
+   *  reveals, carried back through the sign-in round trip. */
+  preRevealed,
   /** The deal gave up; release anything still waiting rather than hold forever. */
   failed = false,
   onFirstFlip,
@@ -40,6 +43,7 @@ export function useDeck({
   seed: string
   tier: JokeTier
   written: ReadonlySet<string>
+  preRevealed?: ReadonlySet<string>
   failed?: boolean
   onFirstFlip?: (slot: SlotKey, position: number) => void
   onReveal?: (slot: SlotKey, position: number) => void
@@ -49,6 +53,10 @@ export function useDeck({
   const [pulsing, setPulsing] = useState(false)
   const timers = useRef<number[]>([])
   const flipCount = useRef(0)
+  // Read inside the seed effect rather than depended on, so a set restored
+  // with reveals does not re-open its cards on every later render.
+  const preRef = useRef(preRevealed)
+  preRef.current = preRevealed
 
   useEffect(() => {
     const held = timers.current
@@ -61,7 +69,10 @@ export function useDeck({
   useEffect(() => {
     timers.current.forEach((t) => window.clearTimeout(t))
     timers.current = []
-    setPhases({})
+    const pre = preRef.current
+    const restored: Partial<Record<SlotKey, DeckPhase>> = {}
+    if (pre) for (const key of pre) restored[key as SlotKey] = 'in'
+    setPhases(restored)
     setPulsing(false)
     flipCount.current = 0
   }, [seed])

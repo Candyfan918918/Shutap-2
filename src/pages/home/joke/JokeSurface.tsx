@@ -42,11 +42,20 @@ import {
 import { PLAN_TO_PRICE, usd } from '@/lib/pricing'
 import {
   anonSessionId,
+  canShareFiles,
   clearAnonSessionId,
+  clearJokePending,
+  isShareAbort,
+  isTouchDevice,
   jokeTrack,
+  openBlob,
+  pngFile,
+  readJokePending,
+  saveEach,
   svgToPng,
-  saveBlob,
-  zipStored,
+  writeJokePending,
+  type JokePending,
+  type NamedBlob,
 } from './jokeClient'
 import { CardFace } from './CardFace'
 import { CardBack, CardBackStyles } from './CardBack'
@@ -82,6 +91,16 @@ type SetState = { id: string; situation: string; archetype: string }
 
 /** The price line the upgrade sheet quotes: annual first, monthly as the
  *  alternative — the same order the subscribe page leads with. */
+/** Where a saved picture is meant to end up, for the browsers that cannot hand
+ *  files to an app themselves. Opened after the file is on disk. */
+const SHARE_DEST: Record<string, string> = {
+  x: 'https://twitter.com/compose/post',
+  instagram: 'https://instagram.com',
+  tiktok: 'https://tiktok.com',
+  sms: 'sms:',
+  all: '',
+}
+
 const PRICE = `${usd(PLAN_TO_PRICE.annual.amount)} / year (${usd(PLAN_TO_PRICE.annual.amount / 12)}/mo) · or ${usd(PLAN_TO_PRICE.monthly.amount)} monthly`
 
 export function JokeSurface() {
@@ -141,7 +160,13 @@ export function JokeSurface() {
   const [gate, setGate] = useState<{ open: boolean; trigger: string }>({ open: false, trigger: 'save' })
   const [toast, setToast] = useState<string | null>(null)
   const [resumeAt, setResumeAt] = useState(0)
+  /** Slots a guest had turned over before the sign-in round trip. Set before
+   *  the restored set, so the deck comes back open on exactly those cards. */
+  const [restored, setRestored] = useState<ReadonlySet<string> | null>(null)
   const pending = useRef<Pending | null>(null)
+  /** One claim per return, whichever path notices the session first. */
+  const claimRan = useRef(false)
+  const bootRan = useRef(false)
   const deckRef = useRef<HTMLDivElement | null>(null)
   /** The band is the first thing to appear after the send, so the send scrolls
    *  to it once — before the deck exists to scroll to. */
@@ -158,6 +183,7 @@ export function JokeSurface() {
     return map
   }, [cards])
   const written = useMemo(() => new Set(bySlot.keys()), [bySlot])
+
 
   const ctx = useCallback(
     // No timezone is sent: the server derives the day from stored state only.
@@ -176,6 +202,7 @@ export function JokeSurface() {
     seed: set?.id ?? 'empty',
     tier,
     written,
+    preRevealed: restored ?? undefined,
     // A refused deal releases a card turned over early just as a jammed one
     // does — otherwise it stays parked on its edge, and the deck reads as two
     // cards with a hole where the third should be. A partial deal releases it
@@ -198,6 +225,20 @@ export function JokeSurface() {
       document.getElementById(PAYWALL_ID)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     },
   })
+
+  /** The cards of the open situation that are turned over AND on file — the
+   *  ones "all N" means. */
+  const exportableIds = useMemo(() => {
+    const revealed = new Set(deck.revealedSlots.map((sl) => sl.key as string))
+    return cards.filter((c) => c.id && revealed.has(c.angle)).map((c) => c.id as string)
+  }, [cards, deck.revealedSlots])
+
+  /** Whether the card an action is aimed at belongs to the open situation. A
+   *  card reached from the set list is on its own. */
+  const focusInSet = useMemo(
+    () => !!focus?.id && exportableIds.includes(focus.id),
+    [focus, exportableIds],
+  )
 
   const refresh = useCallback(async () => {
     try {
@@ -244,63 +285,106 @@ export function JokeSurface() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeAt])
 
-  /** Sign-in lands back on this page. Claim the guest session, then resume. */
-  const claimAndResume = useCallback(async () => {
+  /** Sign-in lands back on this page — same tab, or a full round trip through
+   *  /welcome. Either way: wait for a REAL session, claim the guest set with
+   *  the cards they were holding, put the deck back, then resume what they
+   *  were reaching for. Runs at most once per return. */
+  const claimAndResume = useCallback(async (stored?: JokePending | null) => {
+    if (claimRan.current) return
     // Whatever they had turned over as a guest rides along, so the gate costs
     // them none of it. Only what was turned over: the two still face-down are
     // written when they turn them — which, with an alias, they now can.
     const revealed = new Set(deck.revealedSlots.map((s) => s.key as string))
-    const held = set
-      ? cards
-          .filter((c) => !c.id && revealed.has(c.angle))
-          .map((c) => ({
-            set_id: set.id,
-            position: c.position,
-            angle: c.angle,
-            text: c.text,
-            used_fallback: c.used_fallback,
-            judge_score: c.judge_score,
-          }))
-      : []
+    const held = stored
+      ? stored.held
+      : set
+        ? cards
+            .filter((c) => !c.id && revealed.has(c.angle))
+            .map((c) => ({
+              set_id: set.id,
+              position: c.position,
+              angle: c.angle,
+              text: c.text,
+              used_fallback: c.used_fallback,
+              judge_score: c.judge_score,
+            }))
+        : []
     try {
       // The app also has a background anonymous auth session. Wait for an
-      // actual email-authenticated user, not merely any access token.
+      // actual authenticated user, not merely any access token.
       let realSession = false
       for (let i = 0; i < 12 && !realSession; i++) {
         const session = (await supabase.auth.getSession()).data.session
         realSession = !!session?.access_token && session.user.is_anonymous !== true
         if (!realSession) await new Promise((r) => setTimeout(r, 250))
       }
+      // No session: they came back without signing in. Leave the note where
+      // it is, say nothing, and let them read on.
       if (!realSession) return
+      claimRan.current = true
       const res = await claim({ data: { ...ctx(), hold: held } })
       // The anonymous bootstrap session can still reach here; the server
       // refuses it in kind rather than throwing, and there is nothing to claim.
-      if (!res.ok) return
+      if (!res.ok) { claimRan.current = false; return }
       setTier(res.tier)
       clearAnonSessionId()
       if (res.alias) setAlias(res.alias)
       if (res.claimed.length) {
         jokeTrack('guest_cards_claimed', res.tier, { n: res.claimed.length })
+      }
+      jokeTrack('signin_completed', res.tier, { alias_is_new: res.alias_is_new })
+
+      if (stored) {
+        // Came back from /welcome: the page is fresh, so the situation, the
+        // cards they had read and the pending action all come from the note.
+        clearJokePending()
+        setRestored(new Set(stored.revealed))
+        setCrisis(false)
+        setSet(stored.set)
+        setCards(res.claimed.length ? res.claimed : [])
+        setSaved(null)
+        setPostedAlias(null)
+        pending.current = (stored.action.type === 'save' || stored.action.type === 'share' || stored.action.type === 'post')
+          ? { type: stored.action.type, position: stored.action.position ?? 0 } as Pending
+          : ({ type: stored.action.type } as Pending)
+        // The remaining face-down cards are written now — the set is already
+        // counted in the merged counter, so nothing is charged twice.
+        await dealCards(stored.set.id)
+      } else if (res.claimed.length) {
         setCards((prev) =>
           prev.map((c) => res.claimed.find((k) => k.position === c.position) ?? c),
         )
       }
-      jokeTrack('signin_completed', res.tier, { alias_is_new: res.alias_is_new })
       await refresh()
 
       // A brand-new alias gets its ceremony; a returning one goes straight
-      // back to whatever they were doing.
+      // back to whatever they were doing. Anyone who came through /welcome
+      // already picked a name there, so this is normally skipped.
       if (res.alias_is_new) setCeremonyOpen(true)
       else setResumeAt((n) => n + 1)
     } catch { /* leave them signed in without a claim */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [claim, ctx, cards, set, refresh, deck.revealedSlots])
+
+  /* A guest who signed in through /welcome lands here on a cold page. The note
+     they left is picked up once, after the first read of their identity. */
+  useEffect(() => {
+    if (bootRan.current) return
+    bootRan.current = true
+    void (async () => {
+      const note = readJokePending()
+      if (!note) return
+      await claimAndResume(note)
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       // Anonymous bootstrap also emits SIGNED_IN. Only a real account may
       // claim guest sets/cards or resume a blocked action.
       if (event === 'SIGNED_IN' && session?.user.is_anonymous !== true) {
-        void claimAndResume()
+        void claimAndResume(readJokePending())
       }
     })
     return () => sub.subscription.unsubscribe()
@@ -308,6 +392,28 @@ export function JokeSurface() {
 
   function raiseGate(trigger: string, p: Pending) {
     pending.current = p
+    // Both sign-in paths are full-page round trips, so the deck and the thing
+    // they were reaching for are written down before the sheet goes up.
+    if (set) {
+      const revealed = deck.revealedSlots.map((s) => s.key as string)
+      writeJokePending({
+        set: set,
+        held: cards
+          .filter((c) => !c.id && revealed.includes(c.angle))
+          .map((c) => ({
+            set_id: set.id,
+            position: c.position,
+            angle: c.angle,
+            text: c.text,
+            used_fallback: c.used_fallback,
+            judge_score: c.judge_score,
+          })),
+        revealed,
+        action: 'position' in p ? { type: p.type, position: p.position } : { type: p.type },
+      })
+      // /welcome honours this on its last step and sends them back here.
+      try { sessionStorage.setItem('shutap_returnTo', '/') } catch { /* noop */ }
+    }
     setGate({ open: true, trigger })
     jokeTrack('alias_gate_shown', tier, { trigger })
   }
@@ -518,6 +624,48 @@ export function JokeSurface() {
     }
   }
 
+  /** Rasterise what the server hands back, at the caller's own tier spec. */
+  async function renderPngs(query: { card_id?: string; set_id?: string }) {
+    const res = await exportCards({ data: { ...query, ...ctx() } })
+    // A set comes back whole; only the cards actually turned over travel.
+    const wanted = new Set(exportableIds)
+    const images = query.set_id && wanted.size > 0
+      ? (res.images.filter((i) => wanted.has(i.card_id)).length > 0
+          ? res.images.filter((i) => wanted.has(i.card_id))
+          : res.images)
+      : res.images
+    const blobs: NamedBlob[] = await Promise.all(
+      images.map(async (image) => ({
+        name: image.filename,
+        blob: await svgToPng(image.svg, res.width, res.height),
+      })),
+    )
+    return { res, blobs }
+  }
+
+  /** Getting the picture onto the device. An anchor download is right on a
+   *  desktop and on Android; on a phone that can share files it misses the
+   *  camera roll entirely, so the OS sheet does it — "save image", one tap. */
+  async function deliver(blobs: NamedBlob[]): Promise<boolean> {
+    const files = blobs.map(pngFile)
+    if (isTouchDevice() && canShareFiles(files)) {
+      try {
+        await navigator.share({ files })
+        return true
+      } catch (e) {
+        if (isShareAbort(e)) return false
+        openBlob(blobs[0]!.blob)
+        return true
+      }
+    }
+    if (isTouchDevice() && !canShareFiles(files) && blobs.length === 1) {
+      openBlob(blobs[0]!.blob)
+      return true
+    }
+    await saveEach(blobs)
+    return true
+  }
+
   async function doSave(target: JokeCard | null) {
     if (!target) return
     if (!signedIn) { raiseGate('save', { type: 'save', position: target.position }); return }
@@ -526,11 +674,10 @@ export function JokeSurface() {
     setFocus(target)
     setSaving(true)
     try {
-      const res = await exportCards({ data: { card_id: target.id, ...ctx() } })
-      const image = res.images[0]
-      if (!image) throw new Error('no image')
-      const png = await svgToPng(image.svg, res.width, res.height)
-      saveBlob(png, image.filename)
+      const { res, blobs } = await renderPngs({ card_id: target.id })
+      if (blobs.length === 0) throw new Error('no image')
+      const done = await deliver([blobs[0]!])
+      if (!done) return
       setSaved(`${res.width}×${res.height}`)
       jokeTrack('card_downloaded', res.tier, { slot: target.angle, mark: res.mark })
     } catch {
@@ -540,25 +687,58 @@ export function JokeSurface() {
     }
   }
 
-  /** Members save the whole set in one tap — three PNGs in one zip. */
+  /** Save every card of this situation that has been turned over — one PNG
+   *  each, never an archive. */
   async function doSaveSet() {
     if (!set) return
     if (!signedIn) { raiseGate('save', { type: 'saveSet' }); return }
     setSaving(true)
     try {
-      const res = await exportCards({ data: { set_id: set.id, ...ctx() } })
-      if (res.images.length < 2) { await doSave(cards[0] ?? null); return }
-      const files = await Promise.all(
-        res.images.map(async (image) => ({
-          name: image.filename,
-          blob: await svgToPng(image.svg, res.width, res.height),
-        })),
-      )
-      saveBlob(await zipStored(files), `shutap-cards-${set.id.slice(0, 8)}.zip`)
-      setSaved(`${res.width}×${res.height} · the whole set`)
-      jokeTrack('save_set_completed', res.tier, { n: files.length })
+      const { res, blobs } = await renderPngs({ set_id: set.id })
+      if (blobs.length === 0) throw new Error('no image')
+      if (blobs.length === 1) { await doSave(focus ?? cards[0] ?? null); return }
+      const done = await deliver(blobs)
+      if (!done) return
+      setSaved(`saved ${blobs.length} images · ${res.width}×${res.height}`)
+      jokeTrack('save_set_completed', res.tier, { n: blobs.length })
     } catch {
       say('the set did not render. try once more?')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** Sharing hands over the picture and nothing else — no caption, no link.
+   *  On a phone that is the OS sheet, where X, Instagram, TikTok and Messages
+   *  all live; anywhere else the file saves and the destination opens. */
+  async function doShare(channel: string, all: boolean) {
+    const target = focus
+    if (!signedIn) { raiseGate('share', { type: 'share', position: target?.position ?? 0 }); return }
+    if (!all && !target?.id) return
+    setSaving(true)
+    try {
+      const { res, blobs } = all && set
+        ? await renderPngs({ set_id: set.id })
+        : await renderPngs({ card_id: target!.id! })
+      if (blobs.length === 0) throw new Error('no image')
+      const files = blobs.map(pngFile)
+      if (canShareFiles(files)) {
+        try {
+          await navigator.share({ files })
+        } catch (e) {
+          if (isShareAbort(e)) return
+          throw e
+        }
+      } else {
+        await saveEach(blobs)
+        const dest = SHARE_DEST[channel] ?? SHARE_DEST.all
+        if (dest) window.open(dest, '_blank')
+        say('image saved — attach it there.')
+      }
+      jokeTrack('share_completed', res.tier, { channel, n_files: files.length })
+    } catch (e) {
+      jokeTrack('share_failed', tier, { channel, reason: e instanceof Error ? e.message : 'unknown' })
+      say('that did not go through. try again?')
     } finally {
       setSaving(false)
     }
@@ -1003,10 +1183,11 @@ export function JokeSurface() {
         card={focus}
         tier={tier}
         saving={saving}
+        flipped={focusInSet ? exportableIds.length : 1}
         onClose={() => setShareOpen(false)}
+        onShare={(channel, all) => void doShare(channel, all)}
         onSave={() => void doSave(focus)}
-        onSaveSet={() => void doSaveSet()}
-        onNote={say}
+        onSaveAll={() => void doSaveSet()}
       />
 
       <LimitSheet

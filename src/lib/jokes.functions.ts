@@ -6,7 +6,7 @@
 //   · the only wall a guest hits is the alias gate. A guest turns over ONE
 //     card; the other two stay face-down behind the alias, and it stands in
 //     front of saving and sharing too. Reading what you turned over is free.
-//   · money buys pixels and room: no mark, print-size, the set in one tap,
+//   · money buys pixels and room: no mark, print-size,
 //     three situations a day, the mirror's patterns. It never buys relief.
 //   · crisis overrides all of it — no cards, no gate, no paywall.
 //
@@ -724,8 +724,9 @@ export const exportJokeCards = createServerFn({ method: 'POST' })
     const tier = id.tier === 'paying' ? 'paying' : 'free'
     const spec = exportSpec(tier)
 
-    // Saving the set in one tap is the paid shape. A free member who asks for
-    // one still gets a card back — just the single card, marked, like always.
+    // A set id returns every card of that set, at every signed-in tier: each
+    // image is still rendered at the caller's own spec (mark and size), so
+    // asking for them together buys nothing extra.
     const setId = data.set_id ?? null
     const cardId = data.card_id ?? null
     const mine = () =>
@@ -736,11 +737,9 @@ export const exportJokeCards = createServerFn({ method: 'POST' })
         .order('position', { ascending: true })
 
     const { data: rows } =
-      setId && spec.set
+      setId
         ? await mine().eq('set_id', setId)
-        : cardId
-          ? await mine().eq('id', cardId)
-          : await mine().eq('set_id', setId!).limit(1)
+        : await mine().eq('id', cardId!)
     if (!rows || rows.length === 0) throw new Error('no card there')
 
     const setIds = Array.from(new Set(rows.map((r: any) => r.set_id as string)))
