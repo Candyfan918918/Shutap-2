@@ -1169,7 +1169,17 @@ export function JokeSurface() {
                     <div style={{ fontFamily: SORA, fontWeight: 700, fontSize: 14, color: '#1D9E75' }}>
                       ✓ saved{tier === 'paying' ? ' clean' : ''} · {saved}
                     </div>
-                    {tier === 'paying' ? (
+                    {tier === 'guest' ? (
+                      <>
+                        <CompanionLine>
+                          it&apos;s yours. an alias keeps it in a set list and flips the other two.
+                        </CompanionLine>
+                        <Button onClick={() => raiseGate('keep', { type: 'flip' })} full>
+                          {ALIAS_OFFER.cta}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setSaved(null)} full>this one&apos;s fine</Button>
+                      </>
+                    ) : tier === 'paying' ? (
                       <>
                         <CompanionLine>
                           no mark, nothing of mine on it. post the roast in your room too? the owl who&apos;s been sitting in will lose it.
