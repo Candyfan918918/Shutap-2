@@ -100,7 +100,7 @@ export function HomeHeader() {
   return (
     <>
             {/* ══ HEADER ══ */}
-            <header data-hdr="" style={{ position: 'fixed', top: '0', left: '0', right: '0', zIndex: '50', transition: 'background .35s,backdrop-filter .35s,box-shadow .35s' }}>
+            <header data-hdr="" style={{ position: 'fixed', top: '0', left: '0', right: '0', zIndex: '50', transition: 'background .35s,box-shadow .35s' }}>
               {' '}
               <div style={{ maxWidth: '1560px', margin: '0 auto', padding: '20px 30px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                 {' '}
