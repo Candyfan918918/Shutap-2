@@ -110,6 +110,16 @@ export function isTouchDevice(): boolean {
   return (navigator.maxTouchPoints ?? 0) > 0 || 'ontouchstart' in window
 }
 
+/** The one platform where an anchor download of a blob never reaches Photos.
+ *  Android Chrome downloads perfectly well, so it is NOT included here. */
+export function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  if (/iPhone|iPad|iPod/.test(ua)) return true
+  // iPadOS reports itself as a Mac; the touch points give it away.
+  return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints ?? 0) > 1
+}
+
 /** The user closing the OS sheet is not a failure. */
 export function isShareAbort(e: unknown): boolean {
   return e instanceof Error && (e.name === 'AbortError' || /abort|cancel/i.test(e.message))
@@ -152,6 +162,10 @@ export type PendingHeld = {
 
 export type JokePending = {
   set: { id: string; situation: string; archetype: string }
+  /** every card of the open set — the deck is RESTORED from this on return,
+   *  never re-dealt: the slots are already claimed and the set already paid. */
+  cards: PendingHeld[]
+  /** the subset they had turned over, which the claim writes to their name */
   held: PendingHeld[]
   revealed: string[]
   action: { type: string; position?: number }
@@ -170,6 +184,12 @@ export function readJokePending(): JokePending | null {
     if (!raw) return null
     const p = JSON.parse(raw) as JokePending
     if (!p?.set?.id || !Array.isArray(p.held)) return null
+    // A note from an older build carries no full deck; it cannot be restored,
+    // so it is treated as expired rather than half-honoured.
+    if (!Array.isArray(p.cards) || p.cards.length === 0) {
+      clearJokePending()
+      return null
+    }
     if (!Number.isFinite(p.at) || Date.now() - p.at > PENDING_TTL) {
       clearJokePending()
       return null
