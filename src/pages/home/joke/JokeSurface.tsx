@@ -600,6 +600,48 @@ export function JokeSurface() {
     }
   }
 
+  /** Rasterise what the server hands back, at the caller's own tier spec. */
+  async function renderPngs(query: { card_id?: string; set_id?: string }) {
+    const res = await exportCards({ data: { ...query, ...ctx() } })
+    // A set comes back whole; only the cards actually turned over travel.
+    const wanted = new Set(exportableIds)
+    const images = query.set_id && wanted.size > 0
+      ? (res.images.filter((i) => wanted.has(i.card_id)).length > 0
+          ? res.images.filter((i) => wanted.has(i.card_id))
+          : res.images)
+      : res.images
+    const blobs: NamedBlob[] = await Promise.all(
+      images.map(async (image) => ({
+        name: image.filename,
+        blob: await svgToPng(image.svg, res.width, res.height),
+      })),
+    )
+    return { res, blobs }
+  }
+
+  /** Getting the picture onto the device. An anchor download is right on a
+   *  desktop and on Android; on a phone that can share files it misses the
+   *  camera roll entirely, so the OS sheet does it — "save image", one tap. */
+  async function deliver(blobs: NamedBlob[]): Promise<boolean> {
+    const files = blobs.map(pngFile)
+    if (isTouchDevice() && canShareFiles(files)) {
+      try {
+        await navigator.share({ files })
+        return true
+      } catch (e) {
+        if (isShareAbort(e)) return false
+        openBlob(blobs[0]!.blob)
+        return true
+      }
+    }
+    if (isTouchDevice() && !canShareFiles(files) && blobs.length === 1) {
+      openBlob(blobs[0]!.blob)
+      return true
+    }
+    await saveEach(blobs)
+    return true
+  }
+
   async function doSave(target: JokeCard | null) {
     if (!target) return
     if (!signedIn) { raiseGate('save', { type: 'save', position: target.position }); return }
@@ -608,11 +650,10 @@ export function JokeSurface() {
     setFocus(target)
     setSaving(true)
     try {
-      const res = await exportCards({ data: { card_id: target.id, ...ctx() } })
-      const image = res.images[0]
-      if (!image) throw new Error('no image')
-      const png = await svgToPng(image.svg, res.width, res.height)
-      saveBlob(png, image.filename)
+      const { res, blobs } = await renderPngs({ card_id: target.id })
+      if (blobs.length === 0) throw new Error('no image')
+      const done = await deliver([blobs[0]!])
+      if (!done) return
       setSaved(`${res.width}×${res.height}`)
       jokeTrack('card_downloaded', res.tier, { slot: target.angle, mark: res.mark })
     } catch {
@@ -622,25 +663,58 @@ export function JokeSurface() {
     }
   }
 
-  /** Members save the whole set in one tap — three PNGs in one zip. */
+  /** Save every card of this situation that has been turned over — one PNG
+   *  each, never an archive. */
   async function doSaveSet() {
     if (!set) return
     if (!signedIn) { raiseGate('save', { type: 'saveSet' }); return }
     setSaving(true)
     try {
-      const res = await exportCards({ data: { set_id: set.id, ...ctx() } })
-      if (res.images.length < 2) { await doSave(cards[0] ?? null); return }
-      const files = await Promise.all(
-        res.images.map(async (image) => ({
-          name: image.filename,
-          blob: await svgToPng(image.svg, res.width, res.height),
-        })),
-      )
-      saveBlob(await zipStored(files), `shutap-cards-${set.id.slice(0, 8)}.zip`)
-      setSaved(`${res.width}×${res.height} · the whole set`)
-      jokeTrack('save_set_completed', res.tier, { n: files.length })
+      const { res, blobs } = await renderPngs({ set_id: set.id })
+      if (blobs.length === 0) throw new Error('no image')
+      if (blobs.length === 1) { await doSave(focus ?? cards[0] ?? null); return }
+      const done = await deliver(blobs)
+      if (!done) return
+      setSaved(`saved ${blobs.length} images · ${res.width}×${res.height}`)
+      jokeTrack('save_set_completed', res.tier, { n: blobs.length })
     } catch {
       say('the set did not render. try once more?')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** Sharing hands over the picture and nothing else — no caption, no link.
+   *  On a phone that is the OS sheet, where X, Instagram, TikTok and Messages
+   *  all live; anywhere else the file saves and the destination opens. */
+  async function doShare(channel: string, all: boolean) {
+    const target = focus
+    if (!signedIn) { raiseGate('share', { type: 'share', position: target?.position ?? 0 }); return }
+    if (!all && !target?.id) return
+    setSaving(true)
+    try {
+      const { res, blobs } = all && set
+        ? await renderPngs({ set_id: set.id })
+        : await renderPngs({ card_id: target!.id! })
+      if (blobs.length === 0) throw new Error('no image')
+      const files = blobs.map(pngFile)
+      if (canShareFiles(files)) {
+        try {
+          await navigator.share({ files })
+        } catch (e) {
+          if (isShareAbort(e)) return
+          throw e
+        }
+      } else {
+        await saveEach(blobs)
+        const dest = SHARE_DEST[channel] ?? SHARE_DEST.all
+        if (dest) window.open(dest, '_blank')
+        say('image saved — attach it there.')
+      }
+      jokeTrack('share_completed', res.tier, { channel, n_files: files.length })
+    } catch (e) {
+      jokeTrack('share_failed', tier, { channel, reason: e instanceof Error ? e.message : 'unknown' })
+      say('that did not go through. try again?')
     } finally {
       setSaving(false)
     }
@@ -1085,10 +1159,11 @@ export function JokeSurface() {
         card={focus}
         tier={tier}
         saving={saving}
+        flipped={focusInSet ? exportableIds.length : 1}
         onClose={() => setShareOpen(false)}
+        onShare={(channel, all) => void doShare(channel, all)}
         onSave={() => void doSave(focus)}
-        onSaveSet={() => void doSaveSet()}
-        onNote={say}
+        onSaveAll={() => void doSaveSet()}
       />
 
       <LimitSheet
