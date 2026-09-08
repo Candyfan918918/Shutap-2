@@ -30,6 +30,7 @@ import {
 import {
   ALIAS_OFFER,
   ARCHETYPE_LABEL,
+  angleLabel,
   MEMBER_OFFER,
   exportSpec,
   usageBlock,
@@ -45,8 +46,8 @@ import {
   canShareFiles,
   clearAnonSessionId,
   clearJokePending,
+  isIOS,
   isShareAbort,
-  isTouchDevice,
   jokeTrack,
   openBlob,
   pngFile,
@@ -341,15 +342,31 @@ export function JokeSurface() {
         setRestored(new Set(stored.revealed))
         setCrisis(false)
         setSet(stored.set)
-        setCards(res.claimed.length ? res.claimed : [])
+        // The deck is RESTORED, never re-dealt: the set's three slots were
+        // already claimed by the guest deal. The claimed rows carry the ids of
+        // the cards they had turned over; the other two come back id-less and
+        // are written when they turn them, through ensureKept.
+        setCards(
+          stored.cards.map((c) => {
+            const kept = res.claimed.find((k) => k.position === c.position)
+            if (kept) return kept
+            return {
+              id: null,
+              position: c.position,
+              angle: c.angle,
+              angleLabel: angleLabel(c.angle),
+              text: c.text,
+              used_fallback: c.used_fallback ?? false,
+              judge_score: c.judge_score ?? null,
+              saved: false,
+            } satisfies JokeCard
+          }),
+        )
         setSaved(null)
         setPostedAlias(null)
         pending.current = (stored.action.type === 'save' || stored.action.type === 'share' || stored.action.type === 'post')
           ? { type: stored.action.type, position: stored.action.position ?? 0 } as Pending
           : ({ type: stored.action.type } as Pending)
-        // The remaining face-down cards are written now — the set is already
-        // counted in the merged counter, so nothing is charged twice.
-        await dealCards(stored.set.id)
       } else if (res.claimed.length) {
         setCards((prev) =>
           prev.map((c) => res.claimed.find((k) => k.position === c.position) ?? c),
@@ -394,25 +411,26 @@ export function JokeSurface() {
     pending.current = p
     // Both sign-in paths are full-page round trips, so the deck and the thing
     // they were reaching for are written down before the sheet goes up.
+    // /welcome honours this on its last step and sends them back here — true
+    // for every gate, including the ones that fire with no set open.
+    try { sessionStorage.setItem('shutap_returnTo', '/') } catch { /* noop */ }
     if (set) {
       const revealed = deck.revealedSlots.map((s) => s.key as string)
+      const asHeld = (c: JokeCard) => ({
+        set_id: set.id,
+        position: c.position,
+        angle: c.angle,
+        text: c.text,
+        used_fallback: c.used_fallback,
+        judge_score: c.judge_score,
+      })
       writeJokePending({
         set: set,
-        held: cards
-          .filter((c) => !c.id && revealed.includes(c.angle))
-          .map((c) => ({
-            set_id: set.id,
-            position: c.position,
-            angle: c.angle,
-            text: c.text,
-            used_fallback: c.used_fallback,
-            judge_score: c.judge_score,
-          })),
+        cards: cards.map(asHeld),
+        held: cards.filter((c) => !c.id && revealed.includes(c.angle)).map(asHeld),
         revealed,
         action: 'position' in p ? { type: p.type, position: p.position } : { type: p.type },
       })
-      // /welcome honours this on its last step and sends them back here.
-      try { sessionStorage.setItem('shutap_returnTo', '/') } catch { /* noop */ }
     }
     setGate({ open: true, trigger })
     jokeTrack('alias_gate_shown', tier, { trigger })
@@ -644,21 +662,21 @@ export function JokeSurface() {
   }
 
   /** Getting the picture onto the device. An anchor download is right on a
-   *  desktop and on Android; on a phone that can share files it misses the
-   *  camera roll entirely, so the OS sheet does it — "save image", one tap. */
+   *  desktop and on Android, where it lands in Downloads. Only on iOS does it
+   *  miss the camera roll, so there the OS sheet does it — "save image". */
   async function deliver(blobs: NamedBlob[]): Promise<boolean> {
     const files = blobs.map(pngFile)
-    if (isTouchDevice() && canShareFiles(files)) {
-      try {
-        await navigator.share({ files })
-        return true
-      } catch (e) {
-        if (isShareAbort(e)) return false
-        openBlob(blobs[0]!.blob)
-        return true
+    if (isIOS()) {
+      if (canShareFiles(files)) {
+        try {
+          await navigator.share({ files })
+          return true
+        } catch (e) {
+          if (isShareAbort(e)) return false
+          openBlob(blobs[0]!.blob)
+          return true
+        }
       }
-    }
-    if (isTouchDevice() && !canShareFiles(files) && blobs.length === 1) {
       openBlob(blobs[0]!.blob)
       return true
     }

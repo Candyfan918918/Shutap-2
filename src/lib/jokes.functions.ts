@@ -358,7 +358,9 @@ export const openJokeDeal = createServerFn({ method: 'POST' })
     if (!counted && counter.sets_flipped >= cap.sets) {
       return { ok: false, reason: 'daily_sets', tier: id.tier, usage }
     }
-    if (counter.flips_used + 3 > cap.cards) {
+    // Re-opening a set that has already been charged costs nothing, so the card
+    // budget only applies to a set being counted for the first time.
+    if (!counted && counter.flips_used + 3 > cap.cards) {
       return { ok: false, reason: 'daily_cards', tier: id.tier, usage }
     }
     if ((await chargeNetwork(supabaseAdmin, day, 3)) === 'limited') {
