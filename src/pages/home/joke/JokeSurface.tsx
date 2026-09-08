@@ -227,18 +227,35 @@ export function JokeSurface() {
     },
   })
 
+  const revealedSlotKeys = useMemo(
+    () => new Set(deck.revealedSlots.map((sl) => sl.key as string)),
+    [deck.revealedSlots],
+  )
+
   /** The cards of the open situation that are turned over AND on file — the
-   *  ones "all N" means. */
-  const exportableIds = useMemo(() => {
-    const revealed = new Set(deck.revealedSlots.map((sl) => sl.key as string))
-    return cards.filter((c) => c.id && revealed.has(c.angle)).map((c) => c.id as string)
-  }, [cards, deck.revealedSlots])
+   *  ones "all N" means for anyone signed in. */
+  const exportableIds = useMemo(
+    () => cards.filter((c) => c.id && revealedSlotKeys.has(c.angle)).map((c) => c.id as string),
+    [cards, revealedSlotKeys],
+  )
+
+  /** A guest's cards have no ids — nothing of theirs is stored — so what is
+   *  exportable for them is simply what they turned over. */
+  const guestExportable = useMemo(
+    () => cards.filter((c) => revealedSlotKeys.has(c.angle)),
+    [cards, revealedSlotKeys],
+  )
+
+  /** How many cards of the open situation an "all N" action would carry. */
+  const exportableCount = signedIn ? exportableIds.length : guestExportable.length
 
   /** Whether the card an action is aimed at belongs to the open situation. A
    *  card reached from the set list is on its own. */
   const focusInSet = useMemo(
-    () => !!focus?.id && exportableIds.includes(focus.id),
-    [focus, exportableIds],
+    () => (signedIn
+      ? !!focus?.id && exportableIds.includes(focus.id)
+      : !!focus && revealedSlotKeys.has(focus.angle)),
+    [focus, exportableIds, revealedSlotKeys, signedIn],
   )
 
   const refresh = useCallback(async () => {
