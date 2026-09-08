@@ -410,25 +410,26 @@ export function JokeSurface() {
     pending.current = p
     // Both sign-in paths are full-page round trips, so the deck and the thing
     // they were reaching for are written down before the sheet goes up.
+    // /welcome honours this on its last step and sends them back here — true
+    // for every gate, including the ones that fire with no set open.
+    try { sessionStorage.setItem('shutap_returnTo', '/') } catch { /* noop */ }
     if (set) {
       const revealed = deck.revealedSlots.map((s) => s.key as string)
+      const asHeld = (c: JokeCard) => ({
+        set_id: set.id,
+        position: c.position,
+        angle: c.angle,
+        text: c.text,
+        used_fallback: c.used_fallback,
+        judge_score: c.judge_score,
+      })
       writeJokePending({
         set: set,
-        held: cards
-          .filter((c) => !c.id && revealed.includes(c.angle))
-          .map((c) => ({
-            set_id: set.id,
-            position: c.position,
-            angle: c.angle,
-            text: c.text,
-            used_fallback: c.used_fallback,
-            judge_score: c.judge_score,
-          })),
+        cards: cards.map(asHeld),
+        held: cards.filter((c) => !c.id && revealed.includes(c.angle)).map(asHeld),
         revealed,
         action: 'position' in p ? { type: p.type, position: p.position } : { type: p.type },
       })
-      // /welcome honours this on its last step and sends them back here.
-      try { sessionStorage.setItem('shutap_returnTo', '/') } catch { /* noop */ }
     }
     setGate({ open: true, trigger })
     jokeTrack('alias_gate_shown', tier, { trigger })
