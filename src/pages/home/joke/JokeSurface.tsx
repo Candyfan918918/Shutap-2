@@ -674,12 +674,32 @@ export function JokeSurface() {
     }
   }
 
+  /** One card in the shape the server trusts from a browser: the set it
+   *  belongs to, and the slot it sits in. */
+  const heldOf = useCallback(
+    (c: JokeCard) => ({
+      set_id: (c.set_id ?? set?.id) as string,
+      position: c.position,
+      angle: c.angle,
+      text: c.text,
+      used_fallback: c.used_fallback,
+      judge_score: c.judge_score,
+    }),
+    [set],
+  )
+
+  type ExportQuery =
+    | { card_id: string }
+    | { set_id: string }
+    | { cards: ReturnType<typeof heldOf>[] }
+
   /** Rasterise what the server hands back, at the caller's own tier spec. */
-  async function renderPngs(query: { card_id?: string; set_id?: string }) {
+  async function renderPngs(query: ExportQuery) {
     const res = await exportCards({ data: { ...query, ...ctx() } })
-    // A set comes back whole; only the cards actually turned over travel.
+    // A set comes back whole; only the cards actually turned over travel. The
+    // `cards` path needs no filtering — only revealed cards are ever sent.
     const wanted = new Set(exportableIds)
-    const images = query.set_id && wanted.size > 0
+    const images = 'set_id' in query && wanted.size > 0
       ? (res.images.filter((i) => wanted.has(i.card_id)).length > 0
           ? res.images.filter((i) => wanted.has(i.card_id))
           : res.images)
