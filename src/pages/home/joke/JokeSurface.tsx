@@ -65,7 +65,7 @@ import { CardActions } from './CardActions'
 import { PaywallBlock, PAYWALL_ID } from './PaywallBlock'
 import { SetList, type SetGroup } from './SetList'
 import { useDeck } from './useDeck'
-import { SignInSheet } from './SignInSheet'
+
 import { AliasCeremony, type CeremonyAlias } from './AliasCeremony'
 import { CardShareSheet } from './CardShareSheet'
 import { UpgradeSheet } from './UpgradeSheet'
@@ -158,7 +158,7 @@ export function JokeSurface() {
 
   // ── the rest ──
   const [list, setList] = useState<JokeCard[]>([])
-  const [gate, setGate] = useState<{ open: boolean; trigger: string }>({ open: false, trigger: 'save' })
+  
   const [toast, setToast] = useState<string | null>(null)
   const [resumeAt, setResumeAt] = useState(0)
   /** Slots a guest had turned over before the sign-in round trip. Set before
@@ -432,8 +432,10 @@ export function JokeSurface() {
         action: 'position' in p ? { type: p.type, position: p.position } : { type: p.type },
       })
     }
-    setGate({ open: true, trigger })
     jokeTrack('alias_gate_shown', tier, { trigger })
+    // No in-page sheet: the gate is /welcome itself, reached by a full page
+    // load so the note and returnTo above are committed before the handoff.
+    window.location.assign('/welcome')
   }
 
   /** The limit, instead of a deck. Nothing is written for a spent day. */
@@ -1187,7 +1189,7 @@ export function JokeSurface() {
         </section>
       ) : null}
 
-      <SignInSheet open={gate.open} trigger={gate.trigger} onClose={() => setGate({ open: false, trigger: 'save' })} />
+      
 
       <AliasCeremony
         open={ceremonyOpen}
