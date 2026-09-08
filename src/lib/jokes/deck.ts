@@ -191,7 +191,7 @@ export const ALIAS_OFFER = {
 export const MEMBER_OFFER = {
   cta: 'open the mirror reading',
   /** what a membership buys, in one breath — cards first, then the mirror */
-  line: 'three situations a day, every set kept clean — no mark, print-size, the three in one tap — and the mirror reading the patterns across all of it.',
+  line: 'three situations a day, every set kept clean — no mark, print-size 2160×3840 — and the mirror reading the patterns across all of it.',
 }
 
 /** The one place the member ask is worded differently: the day's deck is
@@ -246,8 +246,6 @@ export type ExportSpec = {
   mark: boolean
   /** "1080×1920 · includes the shutap mark" — shown under the save button. */
   note: string
-  /** paying members save the whole set in one tap */
-  set: boolean
 }
 
 export const EXPORT: Record<Exclude<JokeTier, 'guest'>, ExportSpec> = {
@@ -256,14 +254,12 @@ export const EXPORT: Record<Exclude<JokeTier, 'guest'>, ExportSpec> = {
     height: 1920,
     mark: true,
     note: '1080×1920 · includes the shutap mark',
-    set: false,
   },
   paying: {
     width: 2160,
     height: 3840,
     mark: false,
     note: 'clean · 2160×3840 · no mark on any of them',
-    set: true,
   },
 }
 
