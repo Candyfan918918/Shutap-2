@@ -364,6 +364,12 @@ export function JokeSurface() {
         )
         setSaved(null)
         setPostedAlias(null)
+        // They came back for the cards, not the hero: bring the deck into view
+        // once it has rendered, with share and download under the open card.
+        requestAnimationFrame(() => {
+          const el = deckRef.current
+          if (el) window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - 72), behavior: 'smooth' })
+        })
         pending.current = (stored.action.type === 'save' || stored.action.type === 'share' || stored.action.type === 'post')
           ? { type: stored.action.type, position: stored.action.position ?? 0 } as Pending
           : ({ type: stored.action.type } as Pending)
@@ -410,7 +416,7 @@ export function JokeSurface() {
   /** Write the open set down before any full-page round trip — sign-in or
    *  checkout — so the deck comes back exactly as it was left: the same three
    *  cards, the same ones turned over, and the thing they were reaching for. */
-  function notePending(p: Pending) {
+  function notePending(p: Pending, returnTo: string) {
     if (!set) return
       const revealed = deck.revealedSlots.map((s) => s.key as string)
       const asHeld = (c: JokeCard) => ({
@@ -427,6 +433,7 @@ export function JokeSurface() {
         held: cards.filter((c) => !c.id && revealed.includes(c.angle)).map(asHeld),
         revealed,
         action: 'position' in p ? { type: p.type, position: p.position } : { type: p.type },
+        returnTo,
       })
   }
 
@@ -437,7 +444,7 @@ export function JokeSurface() {
     // honours this on its last step and sends them back here — true for every
     // gate, including the ones that fire with no set open.
     try { sessionStorage.setItem('shutap_returnTo', '/') } catch { /* noop */ }
-    notePending(p)
+    notePending(p, '/')
     jokeTrack('alias_gate_shown', tier, { trigger })
     // No in-page sheet: the gate is /welcome itself, reached by a full page
     // load so the note and returnTo above are committed before the handoff.
@@ -805,7 +812,7 @@ export function JokeSurface() {
       // says what a membership buys and takes the sign-in on the way to
       // paying. The deck is written down first so it is waiting here, cards
       // and all, when they come back — signed in, paid, or neither.
-      notePending({ type: 'flip' })
+      notePending({ type: 'flip' }, '/subscribe?plan=annual')
     }
     void navigate({ to: '/subscribe', search: { plan: 'annual' } as never })
   }

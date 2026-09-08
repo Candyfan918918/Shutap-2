@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Words } from '@/components/motion'
 import { getRouterRef } from '@/lib/router-ref'
-import { clearIntent, readIntent } from '@/lib/auth-guard'
+import { clearIntent, readIntent, takeDurableReturn } from '@/lib/auth-guard'
+import { readJokePending } from '@/pages/home/joke/jokeClient'
 import { EyeMark, primaryBtn, SOFT, TEXT } from './shared'
 
 export interface WelcomeEnterStepProps {
@@ -12,12 +13,22 @@ export interface WelcomeEnterStepProps {
 
 const PENDING_KEYS = ['shutap_pending_save', 'shutap_pending_comment', 'shutap_returnTo'] as const
 
+/** Only same-origin paths are ever followed. */
+function safePath(p: string | null | undefined): string | null {
+  return p && p.startsWith('/') && !p.startsWith('//') ? p : null
+}
+
 function hasPendingAction() {
   try {
     // readIntent() drops an expired/malformed intent as a side effect, so a
     // stale entry no longer counts as a pending action.
     if (readIntent()) return true
-    return PENDING_KEYS.some((key) => !!sessionStorage.getItem(key))
+    // A deck left at the joke gate is the strongest signal of all: they were
+    // mid-card, and this page is a detour. It lives in localStorage, so it is
+    // here even when the sign-in landed in a different tab.
+    if (readJokePending()) return true
+    if (PENDING_KEYS.some((key) => !!sessionStorage.getItem(key))) return true
+    return !!localStorage.getItem('shutap_returnTo_durable')
   } catch {
     return false
   }
@@ -56,13 +67,26 @@ export function WelcomeEnterStep({ displayName }: WelcomeEnterStepProps) {
         if (parsed?.roomId) { goRoom(parsed.roomId); return }
       }
       if (sessionStorage.getItem('shutap_pending_save')) { goHash('spill'); return }
-      const ret = sessionStorage.getItem('shutap_returnTo')
+      const goUrl = (url: string) => {
+        if (router) router.history.push(url)
+        else window.location.replace(url)
+      }
+      // The joke deck they left. The note says where they were headed: the
+      // landing page for the alias gate, the paywall for "get more jokes".
+      // The landing page restores the deck on the card they had turned over
+      // and claims it to the name they just picked. Not cleared here — the
+      // landing page clears it after the claim.
+      const note = readJokePending()
+      if (note) { goUrl(safePath(note.returnTo) ?? '/'); return }
+      const ret = safePath(sessionStorage.getItem('shutap_returnTo'))
       if (ret) {
         sessionStorage.removeItem('shutap_returnTo')
-        if (ret.startsWith('/') && !ret.startsWith('//') && router) router.history.push(ret)
-        else window.location.replace(ret)
+        goUrl(ret)
         return
       }
+      // sessionStorage is per tab; a magic link opened elsewhere has none.
+      const durable = takeDurableReturn()
+      if (durable) { goUrl(durable); return }
     } catch { /* noop */ }
     goPath('/stream')
   }

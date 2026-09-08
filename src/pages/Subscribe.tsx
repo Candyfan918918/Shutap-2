@@ -8,6 +8,7 @@ import { getMyBillingStatus, type BillingStatus } from '@/lib/billing.functions'
 import { PLAN_TO_PRICE, usd, type PlanKey } from '@/lib/pricing'
 import { supabase } from '@/integrations/supabase/client'
 import { useNoIndex } from '@/components/NoIndex'
+import { setDurableReturn } from '@/lib/auth-guard'
 import { AuthStep } from './welcome/AuthStep'
 import { readJokePending } from './home/joke/jokeClient'
 import eyeMascot from '@/assets/eye-mascot.svg'
@@ -134,6 +135,8 @@ export function SubscribePage() {
   useEffect(() => {
     if (authed === false) {
       try { sessionStorage.setItem('shutap_returnTo', `/subscribe?plan=${planKey}`) } catch { /* noop */ }
+      // …and durably, for the magic link that opens in another tab.
+      setDurableReturn(`/subscribe?plan=${planKey}`)
     }
   }, [authed, planKey])
 
