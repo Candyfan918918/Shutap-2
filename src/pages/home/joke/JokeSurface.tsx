@@ -184,19 +184,6 @@ export function JokeSurface() {
   }, [cards])
   const written = useMemo(() => new Set(bySlot.keys()), [bySlot])
 
-  /** The cards of the open situation that are turned over AND on file — the
-   *  ones "all N" means. */
-  const exportableIds = useMemo(() => {
-    const revealed = new Set(deckRevealed)
-    return cards.filter((c) => c.id && revealed.has(c.angle)).map((c) => c.id as string)
-  }, [cards, deckRevealed])
-
-  /** Whether the card an action is aimed at belongs to the open situation. A
-   *  card reached from the set list is on its own. */
-  const focusInSet = useMemo(
-    () => !!focus?.id && exportableIds.includes(focus.id),
-    [focus, exportableIds],
-  )
 
   const ctx = useCallback(
     // No timezone is sent: the server derives the day from stored state only.
@@ -238,6 +225,20 @@ export function JokeSurface() {
       document.getElementById(PAYWALL_ID)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     },
   })
+
+  /** The cards of the open situation that are turned over AND on file — the
+   *  ones "all N" means. */
+  const exportableIds = useMemo(() => {
+    const revealed = new Set(deck.revealedSlots.map((sl) => sl.key as string))
+    return cards.filter((c) => c.id && revealed.has(c.angle)).map((c) => c.id as string)
+  }, [cards, deck.revealedSlots])
+
+  /** Whether the card an action is aimed at belongs to the open situation. A
+   *  card reached from the set list is on its own. */
+  const focusInSet = useMemo(
+    () => !!focus?.id && exportableIds.includes(focus.id),
+    [focus, exportableIds],
+  )
 
   const refresh = useCallback(async () => {
     try {
