@@ -1270,7 +1270,7 @@ export function JokeSurface() {
         card={focus}
         tier={tier}
         saving={saving}
-        flipped={focusInSet ? exportableIds.length : 1}
+        flipped={focusInSet ? exportableCount : 1}
         onClose={() => setShareOpen(false)}
         onShare={(channel, all) => void doShare(channel, all)}
         onSave={() => void doSave(focus)}
