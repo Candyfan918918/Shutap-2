@@ -341,15 +341,31 @@ export function JokeSurface() {
         setRestored(new Set(stored.revealed))
         setCrisis(false)
         setSet(stored.set)
-        setCards(res.claimed.length ? res.claimed : [])
+        // The deck is RESTORED, never re-dealt: the set's three slots were
+        // already claimed by the guest deal. The claimed rows carry the ids of
+        // the cards they had turned over; the other two come back id-less and
+        // are written when they turn them, through ensureKept.
+        setCards(
+          stored.cards.map((c) => {
+            const kept = res.claimed.find((k) => k.position === c.position)
+            if (kept) return kept
+            return {
+              id: null,
+              position: c.position,
+              angle: c.angle,
+              angleLabel: angleLabel(c.angle),
+              text: c.text,
+              used_fallback: c.used_fallback ?? false,
+              judge_score: c.judge_score ?? null,
+              saved: false,
+            } satisfies JokeCard
+          }),
+        )
         setSaved(null)
         setPostedAlias(null)
         pending.current = (stored.action.type === 'save' || stored.action.type === 'share' || stored.action.type === 'post')
           ? { type: stored.action.type, position: stored.action.position ?? 0 } as Pending
           : ({ type: stored.action.type } as Pending)
-        // The remaining face-down cards are written now — the set is already
-        // counted in the merged counter, so nothing is charged twice.
-        await dealCards(stored.set.id)
       } else if (res.claimed.length) {
         setCards((prev) =>
           prev.map((c) => res.claimed.find((k) => k.position === c.position) ?? c),
