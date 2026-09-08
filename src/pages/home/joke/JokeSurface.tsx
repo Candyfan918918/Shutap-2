@@ -1156,7 +1156,7 @@ export function JokeSurface() {
             {deck.revealedSlots.length > 0 ? (
               <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 14, color: FAINT }}>
                 {tier === 'guest'
-                  ? 'reading is free, forever. an alias is a fake name — 30 seconds, no password.'
+                  ? 'reading, sharing and saving are free, forever — with the little shutap mark. an alias flips the other two.'
                   : tier === 'paying'
                     ? `clean · ${spec.width}×${spec.height} · no mark on any of them.`
                     : `saves at ${spec.width}×${spec.height}, with the little shutap mark.`}
