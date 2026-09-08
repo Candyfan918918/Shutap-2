@@ -100,13 +100,17 @@ export function ShareChannels({
   channels = DEFAULT_CHANNELS,
   style,
   surface = 'dark',
+  labels,
 }: {
   onPick: (k: ShareChannelKey) => void
   channels?: ShareChannelKey[]
   style?: CSSProperties
   /** which ground the row sits on — only the neutral pills care */
   surface?: Surface
+  /** per-caller wording for a pill, when the destination is named differently */
+  labels?: Partial<Record<ShareChannelKey, string>>
 }) {
+  const labelOf = (k: ShareChannelKey) => labels?.[k] ?? PILL_LABELS[k]
   return (
     <div
       style={{
@@ -120,7 +124,7 @@ export function ShareChannels({
         <button
           key={k}
           onClick={() => onPick(k)}
-          aria-label={`Share to ${PILL_LABELS[k]}`}
+          aria-label={`Share to ${labelOf(k)}`}
           style={{
             flex: '0 0 auto',
             display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -147,7 +151,7 @@ export function ShareChannels({
             }}
             dangerouslySetInnerHTML={{ __html: pillGlyph(k, surface) }}
           />
-          <span>{PILL_LABELS[k]}</span>
+          <span>{labelOf(k)}</span>
         </button>
       ))}
       <style>{`.shutap-share-row button:active{transform:scale(.96)}`}</style>
