@@ -25,11 +25,11 @@ const SECTIONS = [
   },
   {
     heading: "one situation a day is free \u2014 as a guest, one flip of it",
-    body: "Guests get one situation a day and flip one of its three cards. The other two stay face down, labelled, right where they are: you can see what they are, and flipping them takes an alias. The deck resets every day in your own timezone. When the day is spent, the box tells you so before it sends anything.",
+    body: "Guests get one situation a day and flip one of its three cards \u2014 and can share or save that card, at 1080\u00d71920 with a small shutap mark in the corner. The other two stay face down, labelled, right where they are: you can see what they are, and flipping them takes an alias. The deck resets every day in your own timezone. When the day is spent, the box tells you so before it sends anything.",
   },
   {
     heading: "an alias flips all three, and keeps them",
-    body: "A fake name, thirty seconds, no password: an alias flips all three cards of your situation and keeps them in your set list and the Mirror's record. It is also what lets a card be saved, shared or posted. Free saves are 1080\u00d71920 with a small shutap mark in the corner.",
+    body: "A fake name, thirty seconds, no password: an alias flips all three cards of your situation and keeps them in your set list and the Mirror's record. It is also what lets a card be posted as a room. Sharing and saving are free either way; free saves are 1080\u00d71920 with a small shutap mark in the corner.",
   },
   {
     heading: "members get three a day, and the mirror reading",

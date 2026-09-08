@@ -173,6 +173,7 @@ export const ALWAYS_FREE = [
   'typing what happened, with identifying details scrubbed first',
   'one situation a day — flip one card as a guest, all three with an alias',
   'reading the cards you flipped, for as long as you like',
+  'sharing or saving the card you flipped, with the shutap mark',
 ]
 
 /* ─────────────────────────── the two asks ───────────────────────────
@@ -236,9 +237,10 @@ export function usageIsCurrent(u: JokeUsage | null | undefined, now = Date.now()
 }
 
 /* ─────────────────────────── what money buys ───────────────────────────
-   Pixels, and only pixels. Reading the cards is free at every tier; the
-   paid difference is the absent mark and the print-size export. Guests may
-   read but not export at all — that is the alias gate, not the paywall. */
+   Pixels, and only pixels. Reading, sharing and saving the cards you flipped
+   are free at every tier, guests included — a guest exports at the free spec,
+   marked. The paid difference is the absent mark and the print-size export;
+   the alias gate stands in front of the other two cards, not the export. */
 
 export type ExportSpec = {
   width: number

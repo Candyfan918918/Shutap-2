@@ -3,9 +3,11 @@
 // The shape of the flow, and the reason it is shaped this way:
 //   · three cards, always — the take, the clapback, the roast. Everybody gets
 //     the same three. READING THEM IS FREE AT EVERY TIER, guests included.
-//   · the only wall a guest hits is the alias gate. A guest turns over ONE
-//     card; the other two stay face-down behind the alias, and it stands in
-//     front of saving and sharing too. Reading what you turned over is free.
+//   · the alias stands in front of the OTHER TWO cards, posting as a room and
+//     the set list. A guest turns over ONE card; the other two stay face-down
+//     behind the alias. SHARING AND SAVING ARE FREE AT EVERY TIER, guests
+//     included — a guest export renders at the free spec (1080×1920, marked)
+//     from the card their browser holds, since guest cards are never stored.
 //   · money buys pixels and room: no mark, print-size,
 //     three situations a day, the mirror's patterns. It never buys relief.
 //   · crisis overrides all of it — no cards, no gate, no paywall.
@@ -693,7 +695,7 @@ export type CardImage = {
 }
 
 export type ExportResult = {
-  tier: Exclude<JokeTier, 'guest'>
+  tier: JokeTier
   width: number
   height: number
   mark: boolean
@@ -705,8 +707,11 @@ export type ExportResult = {
  * Render one card, or a whole set, at the caller's tier.
  *
  * The tier is resolved from the token here — a client asking for `mark: false`
- * gets whatever its subscription actually entitles it to. Guests cannot reach
- * this at all: that is the alias gate, and the client raises it before calling.
+ * gets whatever its subscription actually entitles it to. A guest renders from
+ * the cards their browser is holding (their set is never written to
+ * joke_cards), on exactly the trust keepJokeCard already extends: the set must
+ * be their own guest session's, and each card must sit in its own slot. No
+ * writes happen either way.
  */
 export const exportJokeCards = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) =>
@@ -714,15 +719,63 @@ export const exportJokeCards = createServerFn({ method: 'POST' })
       .object({
         card_id: z.string().uuid().nullable().optional(),
         set_id: z.string().uuid().nullable().optional(),
+        cards: z.array(HeldCard).max(3).nullable().optional(),
         ...Ctx,
       })
-      .refine((v) => !!v.card_id || !!v.set_id, { message: 'card_id or set_id required' })
+      .refine(
+        (v) =>
+          [!!v.card_id, !!v.set_id, !!(v.cards && v.cards.length)].filter(Boolean).length === 1,
+        { message: 'exactly one of card_id, set_id or cards is required' },
+      )
       .parse(d),
   )
   .handler(async ({ data }): Promise<ExportResult> => {
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
     const id = await resolveJokeIdentity(data.anon_session_id ?? null)
-    if (!id.userId) throw new Error('an alias comes first')
+
+    // ── a guest: the browser holds the cards, so it sends them ──
+    if (!id.userId) {
+      const held = data.cards ?? []
+      if (held.length === 0) throw new Error('no card there')
+      const setIds = new Set(held.map((c) => c.set_id))
+      if (setIds.size !== 1) throw new Error('no card there')
+      const setId = held[0]!.set_id
+      const set = await loadOwnedSet(supabaseAdmin, setId, null, data.anon_session_id ?? null)
+      if (!set) throw new Error('no card there')
+      const angles = ((set.angles as string[]) ?? []).slice(0, 3)
+      for (const c of held) {
+        if (angles[c.position] !== c.angle) throw new Error('no card there')
+      }
+      const gspec = exportSpec('free')
+      return {
+        tier: 'guest',
+        width: gspec.width,
+        height: gspec.height,
+        mark: gspec.mark,
+        note: gspec.note,
+        images: held
+          .slice()
+          .sort((a, b) => a.position - b.position)
+          .map((c) => {
+            const label = angleLabel(c.angle)
+            return {
+              card_id: `${setId}:${c.position}`,
+              label,
+              filename: cardFilename(label, `${setId}-${c.position}`),
+              svg: renderCardSvg({
+                text: c.text,
+                label,
+                accent: angleAccent(c.angle),
+                situation: (set.clean_text as string) ?? '',
+                width: gspec.width,
+                height: gspec.height,
+                mark: gspec.mark,
+              }),
+            }
+          }),
+      }
+    }
+
     const tier = id.tier === 'paying' ? 'paying' : 'free'
     const spec = exportSpec(tier)
 
