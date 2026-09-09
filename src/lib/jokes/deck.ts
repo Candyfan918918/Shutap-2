@@ -163,7 +163,7 @@ export const FLIPS_PER_SET: Record<JokeTier, number> = { guest: 1, free: 3, payi
 export const MEMBER_BENEFITS: { line: string; detail: string }[] = [
   { line: 'three situations a day, not one', detail: 'the deck resets every day in your own timezone.' },
   { line: 'exports with no shutap mark', detail: 'free cards carry a small mark in the corner; yours are clean.' },
-  { line: '2160×3840 — print-size', detail: 'four times the pixels of a free export.' },
+  
   { line: 'the mirror reading — what your situations keep saying', detail: 'everything you keep goes into a private record it reads patterns back from.' },
 ]
 
@@ -192,7 +192,7 @@ export const ALIAS_OFFER = {
 export const MEMBER_OFFER = {
   cta: 'open the mirror reading',
   /** what a membership buys, in one breath — cards first, then the mirror */
-  line: 'three situations a day, every set kept clean — no mark, print-size 2160×3840 — and the mirror reading the patterns across all of it.',
+  line: 'three situations a day, every set kept clean — no mark — and the mirror reading the patterns across all of it.',
 }
 
 /** The one place the member ask is worded differently: the day's deck is
@@ -237,10 +237,11 @@ export function usageIsCurrent(u: JokeUsage | null | undefined, now = Date.now()
 }
 
 /* ─────────────────────────── what money buys ───────────────────────────
-   Pixels, and only pixels. Reading, sharing and saving the cards you flipped
+   The clean card, and room. Reading, sharing and saving the cards you flipped
    are free at every tier, guests included — a guest exports at the free spec,
-   marked. The paid difference is the absent mark and the print-size export;
-   the alias gate stands in front of the other two cards, not the export. */
+   marked. Every export is the same phone-screen picture, 1080×1920; the paid
+   difference is the absent mark, never the size. The alias gate stands in
+   front of the other two cards, not the export. */
 
 export type ExportSpec = {
   width: number
@@ -258,10 +259,10 @@ export const EXPORT: Record<Exclude<JokeTier, 'guest'>, ExportSpec> = {
     note: '1080×1920 · includes the shutap mark',
   },
   paying: {
-    width: 2160,
-    height: 3840,
+    width: 1080,
+    height: 1920,
     mark: false,
-    note: 'clean · 2160×3840 · no mark on any of them',
+    note: 'clean · 1080×1920 · no mark on any of them',
   },
 }
 

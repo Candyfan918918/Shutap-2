@@ -22,7 +22,7 @@ import { listMyJokeCards, exportJokeCards } from '@/lib/jokes.functions'
 import type { JokeCard, JokeTier } from '@/lib/jokes/deck'
 import { SetList, type SetGroup } from './home/joke/SetList'
 import { Eyes } from './home/joke/ui'
-import { anonSessionId, svgToPng, saveBlob } from './home/joke/jokeClient'
+import { anonSessionId, svgToPng, saveBlob, shareCaption, shareLink } from './home/joke/jokeClient'
 
 type Tab = 'all' | 'rooms' | 'journals' | 'scans' | 'cards'
 
@@ -116,10 +116,13 @@ export function ProfilePage() {
   }
 
   async function shareCard(card: JokeCard) {
-    const text = `${card.text}\n\n— said it on shutap.com`
+    // The whole scene, the way the deck shares it: the situation, the card,
+    // and the way back.
+    const link = shareLink()
+    const text = shareCaption(card, card.situation ?? '', link)
     try {
       if (typeof navigator !== 'undefined' && navigator.share) {
-        await navigator.share({ text })
+        await navigator.share({ text, url: link })
         return
       }
       await navigator.clipboard.writeText(text)
