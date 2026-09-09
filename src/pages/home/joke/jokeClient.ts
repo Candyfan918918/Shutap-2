@@ -44,6 +44,42 @@ export function cardImageUrl(cardId: string): string {
   return `/api/public/joke-card?id=${encodeURIComponent(cardId)}`
 }
 
+/** Where a shared card points back to. Always the public site — never a
+ *  preview host — tagged so arrivals from a card can be counted. */
+export function shareLink(): string {
+  return 'https://shutap.com/?utm_source=share&utm_medium=joke_card'
+}
+
+/** One line of the situation, for a caption — enough to set the scene, short
+ *  enough that the card and the link still fit an X post. */
+export function sceneLine(situation: string, max = 90): string {
+  const t = situation.trim().replace(/\s+/g, ' ')
+  if (t.length <= max) return t
+  return t.slice(0, max - 1).trimEnd() + '…'
+}
+
+/** The caption a card travels with — the whole scene, the way a spill or a
+ *  scan travels: what happened, then the card, then the way back. */
+export function shareCaption(
+  card: { text: string; angleLabel?: string },
+  situation = '',
+  link = shareLink(),
+): string {
+  const scene = sceneLine(situation)
+  const label = card.angleLabel ? `${card.angleLabel}: ` : ''
+  return (scene ? `the situation: “${scene}”\n` : '') + `${label}“${card.text.trim()}”\njoke about it → ${link}`
+}
+
+/** What a card posts as a room: the situation, then the card under it — the
+ *  same whole scene a spill or a scan opens with. No link; it lives here.
+ *  Composed the same way on the server, so an untouched caption is stored as
+ *  is and only an edited one goes back through the scrubber. */
+export function roomCaption(card: { text: string; angleLabel?: string }, situation = ''): string {
+  const scene = situation.trim()
+  const label = card.angleLabel ? `${card.angleLabel}: ` : ''
+  return (scene ? `${scene}\n\n` : '') + `🃏 ${label}“${card.text.trim()}”`
+}
+
 // ───────────────────────── rasterising ─────────────────────────
 
 /** Draw a server-authored SVG document into a PNG blob at its own size. */
