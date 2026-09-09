@@ -33,7 +33,7 @@ const SECTIONS = [
   },
   {
     heading: "members get three a day, and the mirror reading",
-    body: "A membership buys room and pixels: three situations a day instead of one, every set kept clean \u2014 no mark at 2160\u00d73840 \u2014 and the Mirror reading the patterns across everything you keep. It never buys advice, and it never buys relief.",
+    body: "A membership buys room and a clean card: three situations a day instead of one, every set kept clean \u2014 no mark; every card is the same 1080\u00d71920 phone-screen picture at every tier \u2014 and the Mirror reading the patterns across everything you keep. It never buys advice, and it never buys relief.",
   },
   {
     heading: "the joke goes at the situation",
