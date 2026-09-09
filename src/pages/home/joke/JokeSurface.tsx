@@ -1398,12 +1398,44 @@ export function JokeSurface() {
         card={focus}
         tier={tier}
         saving={saving}
+        ready={prepared !== null}
         flipped={focusInSet ? exportableCount : 1}
-        onClose={() => setShareOpen(false)}
-        onShare={(channel, all) => void doShare(channel, all)}
+        caption={caption}
+        onCaption={setCaption}
+        onClose={() => { setShareOpen(false); setPrepared(null) }}
+        onShare={(channel, all) => doShare(channel, all)}
         onSave={() => void doSave(focus)}
         onSaveAll={() => void doSaveSet()}
       />
+
+      {/* ── post as a room — the whole scene, shown before it goes out ── */}
+      <Sheet open={postOpen} onClose={() => setPostOpen(false)} width={520}>
+        <div style={{ fontFamily: SORA, fontWeight: 700, fontSize: 20, letterSpacing: '-.03em', color: INK }}>
+          post it as a room
+        </div>
+        <div style={{ fontFamily: SORA, fontSize: 12.5, color: FAINT }}>
+          the room opens with the whole scene — what happened, then the card. names are already scrubbed; edit the rest if you like.
+        </div>
+        <textarea
+          rows={6}
+          value={postCaption}
+          onChange={(e) => setPostCaption(e.target.value)}
+          style={{
+            width: '100%', resize: 'vertical', borderRadius: 14, padding: '12px 14px',
+            border: '1px solid rgba(11,8,15,.14)', background: '#fff', color: INK,
+            fontFamily: NEWS, fontStyle: 'italic', fontSize: 16, lineHeight: 1.45, outline: 'none',
+          }}
+        />
+        <Button onClick={() => void confirmPost()} disabled={posting || !postCaption.trim()} full>
+          {posting ? 'opening the room…' : '◎ post it'}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setPostOpen(false)} full>
+          not now
+        </Button>
+        <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 13.5, color: FAINT, textAlign: 'center' }}>
+          it goes out under your alias, never your name. no one owes you a reply.
+        </div>
+      </Sheet>
 
       <LimitSheet
         open={limit.open}
