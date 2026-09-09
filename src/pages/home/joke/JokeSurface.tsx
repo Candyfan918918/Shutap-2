@@ -48,11 +48,15 @@ import {
   clearJokePending,
   isIOS,
   isShareAbort,
+  isTouchDevice,
   jokeTrack,
   openBlob,
   pngFile,
   readJokePending,
+  roomCaption,
   saveEach,
+  shareCaption,
+  shareLink,
   svgToPng,
   writeJokePending,
   type JokePending,
@@ -71,7 +75,7 @@ import { CardShareSheet } from './CardShareSheet'
 import { UpgradeSheet } from './UpgradeSheet'
 import { LimitSheet, type LimitSheetReason } from './LimitSheet'
 import { WipBand } from './WipBand'
-import { Button, CompanionLine, Eyebrow, SORA, NEWS, INK, MUTED, FAINT, ACCENT } from './ui'
+import { Button, CompanionLine, Eyebrow, Sheet, SORA, NEWS, INK, MUTED, FAINT, ACCENT } from './ui'
 
 /** What the reader asked for when the alias gate went up, resumed afterwards.
  *  The card rides along by position: the gate can be answered minutes later,
@@ -94,13 +98,21 @@ type SetState = { id: string; situation: string; archetype: string }
  *  alternative — the same order the subscribe page leads with. */
 /** Where a saved picture is meant to end up, for the browsers that cannot hand
  *  files to an app themselves. Opened after the file is on disk. */
-const SHARE_DEST: Record<string, string> = {
-  x: 'https://twitter.com/compose/post',
-  instagram: 'https://instagram.com',
-  tiktok: 'https://tiktok.com',
-  sms: 'sms:',
-  all: '',
+/** Where a share lands on a browser that cannot hand files to an app itself.
+ *  X takes the caption (link included) in the URL; the others get it on the
+ *  clipboard, so only the picture has to be attached by hand. */
+function shareDestination(channel: string, caption: string): string | null {
+  const enc = encodeURIComponent
+  if (channel === 'x') return `https://twitter.com/intent/tweet?text=${enc(caption)}`
+  if (channel === 'instagram') return 'https://www.instagram.com/'
+  if (channel === 'tiktok') return 'https://www.tiktok.com/upload'
+  if (channel === 'sms') return `sms:?&body=${enc(caption)}`
+  return null
 }
+
+/** One rendered card, ready to hand over: the export id it answers to, the
+ *  file for the OS sheet, the blob for a download. */
+type PreparedItem = { card_id: string; name: string; blob: Blob; file: File }
 
 const PRICE = `${usd(PLAN_TO_PRICE.annual.amount)} / year (${usd(PLAN_TO_PRICE.annual.amount / 12)}/mo) · or ${usd(PLAN_TO_PRICE.monthly.amount)} monthly`
 
