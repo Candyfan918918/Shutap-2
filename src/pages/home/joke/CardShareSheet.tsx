@@ -27,6 +27,8 @@ export function CardShareSheet({
   tier,
   saving,
   ready,
+  preview,
+  mobile,
   flipped,
   caption,
   onCaption,
@@ -41,6 +43,10 @@ export function CardShareSheet({
   saving: boolean
   /** the picture(s) are rendered and a pill can hand them over right now */
   ready: boolean
+  /** the rendered card, so what is about to travel is in view */
+  preview: string | null
+  /** a phone hands the picture to the app itself; a computer cannot */
+  mobile: boolean
   /** how many cards of this situation are turned over and exportable */
   flipped: number
   /** what travels with the picture — prefilled, and theirs to edit */
@@ -58,8 +64,33 @@ export function CardShareSheet({
 
   return (
     <Sheet open={open} onClose={onClose} width={520}>
-      <div style={{ fontFamily: SORA, fontWeight: 700, fontSize: 20, letterSpacing: '-.03em', color: INK }}>
-        send it somewhere
+      {/* The picture itself, beside the title: what is about to travel is the
+          first thing in the sheet, not a guess. 9:16, at thumbnail width. */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        <div
+          aria-hidden={!preview}
+          style={{
+            flex: 'none', width: 96, aspectRatio: '9 / 16', borderRadius: 12, overflow: 'hidden',
+            background: '#100c14', border: '1px solid rgba(11,8,15,.1)',
+            boxShadow: '0 12px 28px -16px rgba(11,8,15,.55)',
+          }}
+        >
+          {preview ? (
+            <img src={preview} alt={`the card: ${card.text}`} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : null}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontFamily: SORA, fontWeight: 700, fontSize: 20, letterSpacing: '-.03em', color: INK }}>
+            send it somewhere
+          </div>
+          <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 14.5, lineHeight: 1.45, color: MUTED }}>
+            {!ready
+              ? 'getting the picture ready…'
+              : mobile
+                ? 'one tap puts the picture and the caption straight into the app.'
+                : 'on a computer, X, Instagram and TikTok cannot take a picture from a website — so the picture is saved and the caption copied for you to attach. on your phone it goes straight in.'}
+          </div>
+        </div>
       </div>
 
       {/* Dimmed rather than removed while the picture renders, so the row
@@ -75,9 +106,7 @@ export function CardShareSheet({
       </div>
 
       <div style={{ fontFamily: SORA, fontSize: 12.5, color: FAINT }}>
-        {ready
-          ? 'the picture goes over with the caption below — and a way back here.'
-          : 'getting the picture ready…'}
+        the picture, the caption below, and a way back here.
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>

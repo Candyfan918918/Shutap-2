@@ -170,6 +170,12 @@ export function JokeSurface() {
   } | null>(null)
   /** What travels with the picture. Prefilled from the card, theirs to edit. */
   const [caption, setCaption] = useState('')
+  /** The focused card's rendered picture, shown in the sheet so what is about
+   *  to travel is in view. An object URL, revoked when it changes. */
+  const [preview, setPreview] = useState<string | null>(null)
+  /** A phone hands the picture to the app itself; a computer cannot, and the
+   *  sheet says so. Read after mount — there is no touch on the server. */
+  const [mobile, setMobile] = useState(false)
   /** Posting as a room goes through a sheet too: the whole scene, written
    *  out and editable, before anything is opened to other people. */
   const [postOpen, setPostOpen] = useState(false)
@@ -310,6 +316,20 @@ export function JokeSurface() {
   }, [listCards, ctx])
 
   useEffect(() => { void refresh() }, [refresh])
+
+  useEffect(() => { setMobile(isTouchDevice()) }, [])
+
+  /* The sheet's preview follows the focused card through the prepared set.
+     One object URL at a time; the previous one is revoked on every change. */
+  useEffect(() => {
+    if (!prepared || !focus) { setPreview(null); return }
+    const wanted = focus.id ?? `${focus.set_id ?? set?.id}:${focus.position}`
+    const item = prepared.items.find((i) => i.card_id === wanted) ?? prepared.items[0]
+    if (!item) { setPreview(null); return }
+    const url = URL.createObjectURL(item.blob)
+    setPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [prepared, focus, set])
 
   /* The band's clock. It starts when the send does and runs until the last
      card lands — deliberately keyed off "is anything happening" rather than
@@ -1399,6 +1419,8 @@ export function JokeSurface() {
         tier={tier}
         saving={saving}
         ready={prepared !== null}
+        preview={preview}
+        mobile={mobile}
         flipped={focusInSet ? exportableCount : 1}
         caption={caption}
         onCaption={setCaption}
