@@ -22,11 +22,18 @@
 //     the deal. keepJokeCard covers the one case left: a guest's turned-over
 //     card following them through the alias gate.
 //   · signing in merges today's counter instead of minting a fresh allowance
+//
+// The writing itself is jokes/pipeline.server.ts: a premise pass once per
+// set (at the deal), then per card ten candidates in the set's voice, the
+// hard rules, and a judge on a different model family. Every card records
+// the prompt version, the voice, both models, every candidate and the
+// judge's reason, so a change in quality can be traced to a cause.
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { runScrub } from './agents/scrubber.functions'
 import { runClassifyCrisis } from './agents/guard.functions'
-import { classifyArchetype, dealSlots, generateLine } from './jokes/deck.server'
+import { classifyArchetype, dealSlots } from './jokes/deck.server'
+import { generateCard, prepareSet, type GeneratedCard, type SetRow } from './jokes/pipeline.server'
 import { resolveJokeIdentity, resolveDay, resolveDayInfo, ipFlipLimit, ipSubjectKey } from './jokes/session.server'
 import { LEGAL_VERSION } from './seo/legal'
 import {
@@ -376,6 +383,17 @@ export const openJokeDeal = createServerFn({ method: 'POST' })
       await charge(supabaseAdmin, id.subjectKey, day, counter, 3, set.id as string)
     }
 
+    // Stage 1 of the writer runs here, once for the set, so the three
+    // per-card writes that follow share one premise pass instead of racing
+    // to make three. It is cached on the set; a card that still finds the
+    // set bare (this call failed half-way) runs it itself. Never a reason
+    // to refuse the deal: the counter is charged and the cards will write.
+    try {
+      await prepareSet(supabaseAdmin, set as SetRow)
+    } catch (err) {
+      console.error('[joke-deal] prepare failed; cards will prepare on write', { set_id: set.id, err })
+    }
+
     return {
       ok: true,
       angles,
@@ -474,17 +492,14 @@ export const writeJokeCard = createServerFn({ method: 'POST' })
     }
     if (!claimed) return { ok: false, reason: 'already_written', tier: id.tier }
 
-    // generateLine falls back to an authored line rather than failing, so a
-    // throw here means the gateway itself is down. The slot was claimed before
-    // the model ran, so it has to be given back — otherwise one blip leaves
-    // that card permanently unwritable and the set is stuck at two.
+    // generateCard falls back to an authored line rather than failing, so a
+    // throw here means something below the writer is down. The slot was
+    // claimed before the model ran, so it has to be given back — otherwise
+    // one blip leaves that card permanently unwritable and the set is stuck
+    // at two.
     let out
     try {
-      out = await generateLine({
-        angle,
-        archetype: (set.archetype as string) ?? 'general',
-        situation: (set.clean_text as string) ?? '',
-      })
+      out = await generateCard(supabaseAdmin, set as SetRow, { slot: angle })
     } catch (err) {
       await supabaseAdmin
         .from('joke_deal_slots')
@@ -507,6 +522,7 @@ export const writeJokeCard = createServerFn({ method: 'POST' })
         text: out.text,
         used_fallback: out.used_fallback,
         judge_score: out.judge_score,
+        generated: out,
       })
 
       // The mirror hears the set once, whole, when the last of the three
@@ -553,8 +569,13 @@ async function persistCard(
     text: string
     used_fallback: boolean
     judge_score: number | null
+    /** The writer's record of how the card came to be — prompt version,
+     *  voice, models, every candidate and the judge's reason. Absent for a
+     *  card a guest carried through the gate, which was written before. */
+    generated?: GeneratedCard | null
   },
 ): Promise<string | null> {
+  const g = args.generated ?? null
   const { data: card } = await admin
     .from('joke_cards')
     .upsert(
@@ -568,6 +589,16 @@ async function persistCard(
         judge_score: args.judge_score,
         is_seed: false,
         corpus_eligible: false,
+        ...(g
+          ? {
+              prompt_version: g.prompt_version,
+              voice_key: g.voice_key,
+              writer_model: g.writer_model,
+              judge_model: g.judge_model,
+              judge_why: g.judge_why,
+              candidates: g.candidates,
+            }
+          : {}),
       } as never,
       { onConflict: 'set_id,position' },
     )
@@ -612,11 +643,19 @@ export const rerollJokeCard = createServerFn({ method: 'POST' })
     }
     await charge(supabaseAdmin, id.subjectKey, day, counter, 1, set.id as string)
 
-    const out = await generateLine({
-      angle,
-      archetype: (set.archetype as string) ?? 'general',
-      situation: (set.clean_text as string) ?? '',
-    })
+    // Another take must be another take: the card already in this slot is
+    // handed to the writer as the one line it may not write again.
+    const { data: prior } = id.userId
+      ? await supabaseAdmin
+          .from('joke_cards')
+          .select('card_text')
+          .eq('set_id', set.id)
+          .eq('position', data.position)
+          .maybeSingle()
+      : { data: null }
+    const avoid = prior?.card_text ? [String(prior.card_text)] : []
+
+    const out = await generateCard(supabaseAdmin, set as SetRow, { slot: angle, avoid })
 
     let cardId: string | null = null
     if (id.userId) {
@@ -628,6 +667,7 @@ export const rerollJokeCard = createServerFn({ method: 'POST' })
         text: out.text,
         used_fallback: out.used_fallback,
         judge_score: out.judge_score,
+        generated: out,
       })
       await ingestJokeSignal(id.userId, set.id as string, out.text)
     }

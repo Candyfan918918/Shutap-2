@@ -1,12 +1,14 @@
-// Server-only joke-card engine: authored fallback pools, hall-of-fame
-// few-shots, the archetype matcher, the three-slot deal, the guardrails and
-// the generate → judge → one retry → authored fallback ladder.
+// Server-only joke-card vocabulary: the authored fallback pools, the
+// archetype matcher and the three-slot deal.
 //
-// The never-blank law: a card can never resolve empty. If the model is down,
-// off-voice, or over the length cap twice, the authored pool for that slot
-// carries the card — so the three cards a person is offered are three cards
-// they actually get.
-import { callAgent } from '@/lib/agents/gateway'
+// The writing itself — premises → ten candidates → a judge on another model
+// family → the floor — lives in pipeline.server.ts, with its prompts in
+// prompts.server.ts and its voices and hall of fame in voices.server.ts.
+//
+// The never-blank law: a card can never resolve empty. If the gateway is
+// down or every candidate fails the hard rules twice, the authored pool for
+// that slot carries the card — so the three cards a person is offered are
+// three cards they actually get.
 import { ANGLES, SLOTS, SLOT_KEYS, type SlotKey } from './deck'
 
 /* authored fallback pools — one per slot (plus the legacy angles),
@@ -74,41 +76,6 @@ export const FALLBACKS: Record<string, string[]> = {
   ],
 }
 
-/* hall of fame — few-shot curation. archetype null = works anywhere. */
-export const HOF: { angle: string; archetype: string | null; text: string }[] = [
-  { angle: 'target_the_behavior', archetype: 'uninvited_visitor', text: 'she has a key and the emotional range of a landlord doing an inspection.' },
-  { angle: 'target_the_behavior', archetype: 'boundary_bulldozer', text: 'you drew a line and she read it as a starting pistol.' },
-  { angle: 'target_the_guilt_trip', archetype: 'silent_treatment_strategist', text: 'nine days of silence, and somehow you are the one who went too far.' },
-  { angle: 'target_the_double_standard', archetype: 'favoritism_broadcaster', text: 'the golden child gets grace. you get a performance review.' },
-  { angle: 'target_the_timing', archetype: 'grandbaby_countdown_clock', text: 'she timed the grandchild question for dessert so nobody could leave the table.' },
-  { angle: 'absurdist_escalation', archetype: 'grandbaby_countdown_clock', text: 'she is three months from putting a due date on the family calendar in pen.' },
-  { angle: 'deadpan_understatement', archetype: 'backhanded_grandma', text: 'a compliment, technically, in the way a paper cut is technically a touch.' },
-  { angle: 'the_comeback', archetype: 'backhanded_grandma', text: '"say the second half out loud too."' },
-  { angle: 'the_comeback', archetype: 'uninvited_visitor', text: '"a call first. that is the whole sentence."' },
-  { angle: 'the_take', archetype: null, text: 'he did not make a chore chart. he made an org chart. and babe — you are the whole org.' },
-  { angle: 'the_take', archetype: 'boundary_bulldozer', text: 'you drew a line and she read it as a starting pistol.' },
-  { angle: 'the_take', archetype: 'silent_treatment_strategist', text: 'nine days of silence, and somehow you are the one who went too far.' },
-  { angle: 'the_clapback', archetype: null, text: '"i have added a column. it is called him."' },
-  { angle: 'the_clapback', archetype: 'backhanded_grandma', text: '"say the second half out loud too."' },
-  { angle: 'the_clapback', archetype: 'uninvited_visitor', text: '"a call first. that is the whole sentence."' },
-  { angle: 'the_roast', archetype: null, text: 'that chart has the quiet confidence of a document nobody asked for.' },
-  { angle: 'the_roast', archetype: 'grandbaby_countdown_clock', text: 'the family calendar is one dessert away from having a due date in pen.' },
-  { angle: 'the_roast', archetype: 'favoritism_broadcaster', text: 'the golden child gets grace. you get a performance review, quarterly.' },
-]
-
-/* guardrails — advice, prescription and clinical language never ship on a card */
-const ADVICE = /\b(you should|you could|try to|try a|consider|i'd recommend|i would recommend|maybe you could|it might help|set a boundary|communicate|talk to (her|him|them) about)\b/i
-const CLINICAL = /\b(therapy|therapist|healing|heal|safe space|clarity|growth|journey|trauma|narcissis\w*|gaslight\w*|toxic|boundaries are|diagnos\w*|disorder|abuse cycle)\b/i
-
-export function passesGuardrails(line: string): boolean {
-  if (!line) return false
-  if (line.length > 110) return false
-  if (line.trim().split(/\s+/).length > 16) return false
-  if (ADVICE.test(line)) return false
-  if (CLINICAL.test(line)) return false
-  return true
-}
-
 export function classifyArchetype(clean: string): string {
   const s = clean.toLowerCase()
   if (/\b(key|let herself|letting herself|rearrang|unannounced|without asking|dropped by|showed up)\b/.test(s)) return 'uninvited_visitor'
@@ -133,72 +100,4 @@ export function briefFor(angle: string): string {
   const slot = SLOTS.find((s) => s.key === angle)
   if (slot) return slot.brief
   return ANGLES.find((a) => a[0] === angle)?.[2] ?? 'roast the behaviour'
-}
-
-/** Only the clapback and the legacy comeback are spoken lines, so only they
- *  keep their quotation marks through the cleanup below. */
-function isSpokenLine(angle: string): boolean {
-  return angle === 'the_clapback' || angle === 'the_comeback'
-}
-
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]!
-}
-
-function fewShot(angle: string, archetype: string): string[] {
-  const matched = HOF.filter((h) => h.angle === angle && h.archetype === archetype)
-  const anywhere = HOF.filter((h) => h.angle === angle)
-  return (matched.length ? matched : anywhere).map((h) => h.text)
-}
-
-const SYSTEM = `You write ONE joke card for shutap. You roast the SITUATION and the other
-person's behaviour. You never advise, prescribe, diagnose, or aim at the writer's own pain,
-and you never reconstruct a real person's name.
-
-Hard rules:
-- one line only, lowercase friend register, concrete, dry.
-- maximum 16 words and under 110 characters.
-- NEVER use: "you should", "you could", "try to", "consider", "i'd recommend".
-- NEVER use clinical or diagnostic words (therapy, healing, trauma, toxic, narcissist, gaslight, boundaries, disorder).
-- no hashtags, no emoji, no quotation marks unless the card is the clapback.
-- the bite lands on the SITUATION and the other person's move — the chart, the
-  sigh, the rule — never on the writer, and never on who the other person is.
-Return ONLY the line. No preamble, no explanation.`
-
-export type GeneratedLine = { text: string; used_fallback: boolean; judge_score: number | null }
-
-export async function generateLine(args: {
-  angle: string
-  archetype: string
-  situation: string
-}): Promise<GeneratedLine> {
-  const brief = briefFor(args.angle)
-  const shots = fewShot(args.angle, args.archetype)
-  const user = [
-    `CARD: ${args.angle} — ${brief}`,
-    `FLAVOUR: ${args.archetype}`,
-    shots.length ? `LINES THAT LANDED ON THIS CARD:\n${shots.map((s) => '- ' + s).join('\n')}` : '',
-    `SITUATION (already de-identified):\n${args.situation.slice(0, 1200)}`,
-    'Write the line.',
-  ].filter(Boolean).join('\n\n')
-
-  // generate → judge → one retry maximum
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await callAgent({
-      system: SYSTEM,
-      messages: [{ role: 'user', content: user }],
-      maxTokens: 120,
-    })
-    const line = String(res.text ?? '')
-      .replace(/^\s*["'`]+|["'`]+\s*$/g, (m) => (isSpokenLine(args.angle) ? m : ''))
-      .split('\n')[0]!
-      .trim()
-      .toLowerCase()
-    if (passesGuardrails(line)) {
-      return { text: line, used_fallback: false, judge_score: attempt === 0 ? 0.86 : 0.74 }
-    }
-  }
-
-  const pool = FALLBACKS[args.angle] ?? FALLBACKS['deadpan_understatement']!
-  return { text: pick(pool), used_fallback: true, judge_score: null }
 }

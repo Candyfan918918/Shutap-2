@@ -5,19 +5,39 @@ import { createLovableAiGatewayProvider } from '@/lib/ai-gateway.server'
 
 export type AgentMessage = { role: 'user' | 'assistant'; content: string }
 
+/** Default model for every agent that does not name its own. */
+export const DEFAULT_MODEL = 'google/gemini-2.5-flash'
+
+/** Reasoning-first models reject a sampling temperature outright; sending one
+ *  fails the whole call rather than being ignored. */
+function acceptsTemperature(modelId: string): boolean {
+  return !/^openai\/(gpt-5|o[1-9])/i.test(modelId)
+}
+
+/** The provider family a model id belongs to — `google`, `openai`, … The
+ *  joke judge must sit in a different family from the joke writer. */
+export function modelFamily(modelId: string): string {
+  return modelId.split('/')[0]?.toLowerCase() ?? modelId
+}
+
 export async function callAgent(opts: {
   system?: string
   messages: AgentMessage[]
   maxTokens?: number
   jsonMode?: boolean
-}): Promise<{ text: string; error?: string }> {
+  /** Per-call model override, e.g. the joke judge runs on a different family
+   *  from the joke writer. Falls back to LOVABLE_AI_MODEL, then the default. */
+  model?: string
+  /** Sampling temperature. Omitted → the model's own default. */
+  temperature?: number
+}): Promise<{ text: string; error?: string; model: string }> {
   const maxTokens = Math.min(Math.max(opts.maxTokens ?? 1500, 64), 4096)
-  const lovableKey = process.env.LOVABLE_API_KEY
-  if (!lovableKey) return { text: '', error: 'no AI key' }
   // Default to Flash: 2.5-Pro spends hidden reasoning tokens against
   // maxOutputTokens and truncates our small structured JSON responses,
   // which sent every Mirror reading/punch call into the fallback path.
-  const modelId = process.env.LOVABLE_AI_MODEL || 'google/gemini-2.5-flash'
+  const modelId = opts.model || process.env.LOVABLE_AI_MODEL || DEFAULT_MODEL
+  const lovableKey = process.env.LOVABLE_API_KEY
+  if (!lovableKey) return { text: '', error: 'no AI key', model: modelId }
   try {
     const gateway = createLovableAiGatewayProvider(lovableKey)
     const result = await generateText({
@@ -25,10 +45,13 @@ export async function callAgent(opts: {
       system: opts.system,
       messages: opts.messages,
       maxOutputTokens: maxTokens,
+      ...(opts.temperature !== undefined && acceptsTemperature(modelId)
+        ? { temperature: opts.temperature }
+        : {}),
     })
-    return { text: result.text }
+    return { text: result.text, model: modelId }
   } catch (err) {
-    return { text: '', error: err instanceof Error ? err.message : 'gateway error' }
+    return { text: '', error: err instanceof Error ? err.message : 'gateway error', model: modelId }
   }
 }
 

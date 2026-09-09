@@ -472,48 +472,66 @@ export type Database = {
       joke_cards: {
         Row: {
           angle: string
+          candidates: Json | null
           card_text: string
           corpus_eligible: boolean
           created_at: string
           id: string
           is_seed: boolean
+          judge_model: string | null
+          judge_why: string | null
           judge_score: number | null
           position: number
+          prompt_version: string | null
           room_id: string | null
           set_id: string
           updated_at: string
           used_fallback: boolean
           user_id: string | null
+          voice_key: string | null
+          writer_model: string | null
         }
         Insert: {
           angle: string
+          candidates?: Json | null
           card_text: string
           corpus_eligible?: boolean
           created_at?: string
           id?: string
           is_seed?: boolean
+          judge_model?: string | null
+          judge_why?: string | null
           judge_score?: number | null
           position?: number
+          prompt_version?: string | null
           room_id?: string | null
           set_id: string
           updated_at?: string
           used_fallback?: boolean
           user_id?: string | null
+          voice_key?: string | null
+          writer_model?: string | null
         }
         Update: {
           angle?: string
+          candidates?: Json | null
           card_text?: string
           corpus_eligible?: boolean
           created_at?: string
           id?: string
           is_seed?: boolean
+          judge_model?: string | null
+          judge_why?: string | null
           judge_score?: number | null
           position?: number
+          prompt_version?: string | null
           room_id?: string | null
           set_id?: string
           updated_at?: string
           used_fallback?: boolean
           user_id?: string | null
+          voice_key?: string | null
+          writer_model?: string | null
         }
         Relationships: [
           {
@@ -597,6 +615,63 @@ export type Database = {
         }
         Relationships: []
       }
+      joke_hall_of_fame: {
+        Row: {
+          archetype: string | null
+          card_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          joke_text: string
+          situation_clean: string
+          slot: string
+          source: string
+          updated_at: string
+          voice_key: string | null
+        }
+        Insert: {
+          archetype?: string | null
+          card_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          joke_text: string
+          situation_clean: string
+          slot: string
+          source?: string
+          updated_at?: string
+          voice_key?: string | null
+        }
+        Update: {
+          archetype?: string | null
+          card_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          joke_text?: string
+          situation_clean?: string
+          slot?: string
+          source?: string
+          updated_at?: string
+          voice_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "joke_hall_of_fame_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "joke_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "joke_hall_of_fame_voice_key_fkey"
+            columns: ["voice_key"]
+            isOneToOne: false
+            referencedRelation: "joke_voices"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       joke_sets: {
         Row: {
           angles: string[]
@@ -607,8 +682,12 @@ export type Database = {
           created_at: string
           id: string
           is_seed: boolean
+          premises: Json | null
+          premises_version: string | null
+          roast_target: string | null
           updated_at: string
           user_id: string | null
+          voice_key: string | null
         }
         Insert: {
           angles?: string[]
@@ -619,8 +698,12 @@ export type Database = {
           created_at?: string
           id?: string
           is_seed?: boolean
+          premises?: Json | null
+          premises_version?: string | null
+          roast_target?: string | null
           updated_at?: string
           user_id?: string | null
+          voice_key?: string | null
         }
         Update: {
           angles?: string[]
@@ -631,8 +714,56 @@ export type Database = {
           created_at?: string
           id?: string
           is_seed?: boolean
+          premises?: Json | null
+          premises_version?: string | null
+          roast_target?: string | null
           updated_at?: string
           user_id?: string | null
+          voice_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "joke_sets_voice_key_fkey"
+            columns: ["voice_key"]
+            isOneToOne: false
+            referencedRelation: "joke_voices"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      joke_voices: {
+        Row: {
+          banned_moves: string
+          created_at: string
+          is_active: boolean
+          key: string
+          label: string
+          persona_prompt: string
+          register_notes: string
+          updated_at: string
+          weight: number
+        }
+        Insert: {
+          banned_moves: string
+          created_at?: string
+          is_active?: boolean
+          key: string
+          label: string
+          persona_prompt: string
+          register_notes: string
+          updated_at?: string
+          weight?: number
+        }
+        Update: {
+          banned_moves?: string
+          created_at?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          persona_prompt?: string
+          register_notes?: string
+          updated_at?: string
+          weight?: number
         }
         Relationships: []
       }
