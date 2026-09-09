@@ -111,7 +111,7 @@ export function UpgradeSheet({
 
         <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 13.5, lineHeight: 1.55, color: '#9e7a8c', textAlign: 'center' }}>
           renews each period until you cancel; cancel anytime and keep access to the end of the period. payments already made are not refunded.
-          the cards are ai-written jokes, not advice — a membership buys pixels and room, never relief.{' '}
+          the cards are ai-written jokes, not advice — a membership buys the clean card and room, never relief.{' '}
           <a href="/terms#plans" target="_blank" rel="noreferrer" style={LINK}>plans &amp; limits</a> ·{' '}
           <a href="/terms#refunds" target="_blank" rel="noreferrer" style={LINK}>billing &amp; refunds</a> ·{' '}
           <a href="/privacy" target="_blank" rel="noreferrer" style={LINK}>privacy</a> ·{' '}

@@ -8,8 +8,9 @@
 //     behind the alias. SHARING AND SAVING ARE FREE AT EVERY TIER, guests
 //     included — a guest export renders at the free spec (1080×1920, marked)
 //     from the card their browser holds, since guest cards are never stored.
-//   · money buys pixels and room: no mark, print-size,
-//     three situations a day, the mirror's patterns. It never buys relief.
+//   · money buys the clean card and room: no mark, three situations a day,
+//     the mirror's patterns. Every export is the same phone-screen picture,
+//     1080×1920, at every tier. It never buys relief.
 //   · crisis overrides all of it — no cards, no gate, no paywall.
 //
 // Every rule that matters is enforced here, never in the browser:
@@ -1136,7 +1137,17 @@ export const listMyJokeCards = createServerFn({ method: 'POST' })
 // ───────────────────── 7 · post a card to a room ─────────────────────
 
 export const postJokeCardToRoom = createServerFn({ method: 'POST' })
-  .inputValidator((d: unknown) => z.object({ card_id: z.string().uuid(), ...Ctx }).parse(d))
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        card_id: z.string().uuid(),
+        /** what the room says — the whole scene, edited or not. Absent, the
+         *  server composes it: the situation, then the card. */
+        caption: z.string().max(1200).optional(),
+        ...Ctx,
+      })
+      .parse(d),
+  )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
     const id = await resolveJokeIdentity(data.anon_session_id ?? null)
@@ -1162,16 +1173,27 @@ export const postJokeCardToRoom = createServerFn({ method: 'POST' })
       .eq('id', card.set_id)
       .maybeSingle()
 
-    const title = String(card.card_text).slice(0, 90)
+    // The room opens with the whole scene, the way a spill or a scan does:
+    // the situation (already scrubbed), then the card under it. A caption the
+    // reader edited goes back through the scrubber before it is stored —
+    // anything a person typed does, always. An untouched one is composed the
+    // same way the client composes it, so it is stored as is.
+    const cardText = String(card.card_text)
+    const scene = ((set?.clean_text as string) ?? '').trim()
+    const composed = (scene ? `${scene}\n\n` : '') + `🃏 ${angleLabel(card.angle as string)}: “${cardText}”`
+    const typed = data.caption?.trim()
+    const body = typed && typed !== composed ? (await runScrub(typed)).clean_text : composed
+
+    const title = cardText.slice(0, 90)
     const { data: situation, error: sitErr } = await supabaseAdmin
       .from('situations')
       .insert({
         alias_id: id.userId,
         pillar: 'family',
-        clean_text: (set?.clean_text as string) ?? String(card.card_text),
+        clean_text: scene || cardText,
         kind: 'joke',
         title,
-        body: String(card.card_text),
+        body,
         is_public: true,
         crisis_flag: false,
         is_seed: false,
@@ -1188,7 +1210,7 @@ export const postJokeCardToRoom = createServerFn({ method: 'POST' })
         alias: (alias?.display_name as string) ?? 'someone',
         emoji: (alias?.emoji as string) ?? '🃏',
         title,
-        body: String(card.card_text),
+        body,
         support: 'heard',
         hall: 'relatable',
         source: 'joke',

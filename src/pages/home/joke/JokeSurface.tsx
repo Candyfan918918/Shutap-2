@@ -48,11 +48,15 @@ import {
   clearJokePending,
   isIOS,
   isShareAbort,
+  isTouchDevice,
   jokeTrack,
   openBlob,
   pngFile,
   readJokePending,
+  roomCaption,
   saveEach,
+  shareCaption,
+  shareLink,
   svgToPng,
   writeJokePending,
   type JokePending,
@@ -71,7 +75,7 @@ import { CardShareSheet } from './CardShareSheet'
 import { UpgradeSheet } from './UpgradeSheet'
 import { LimitSheet, type LimitSheetReason } from './LimitSheet'
 import { WipBand } from './WipBand'
-import { Button, CompanionLine, Eyebrow, SORA, NEWS, INK, MUTED, FAINT, ACCENT } from './ui'
+import { Button, CompanionLine, Eyebrow, Sheet, SORA, NEWS, INK, MUTED, FAINT, ACCENT } from './ui'
 
 /** What the reader asked for when the alias gate went up, resumed afterwards.
  *  The card rides along by position: the gate can be answered minutes later,
@@ -92,15 +96,21 @@ type SetState = { id: string; situation: string; archetype: string }
 
 /** The price line the upgrade sheet quotes: annual first, monthly as the
  *  alternative — the same order the subscribe page leads with. */
-/** Where a saved picture is meant to end up, for the browsers that cannot hand
- *  files to an app themselves. Opened after the file is on disk. */
-const SHARE_DEST: Record<string, string> = {
-  x: 'https://twitter.com/compose/post',
-  instagram: 'https://instagram.com',
-  tiktok: 'https://tiktok.com',
-  sms: 'sms:',
-  all: '',
+/** Where a share lands on a browser that cannot hand files to an app itself.
+ *  X takes the caption (link included) in the URL; the others get it on the
+ *  clipboard, so only the picture has to be attached by hand. */
+function shareDestination(channel: string, caption: string): string | null {
+  const enc = encodeURIComponent
+  if (channel === 'x') return `https://twitter.com/intent/tweet?text=${enc(caption)}`
+  if (channel === 'instagram') return 'https://www.instagram.com/'
+  if (channel === 'tiktok') return 'https://www.tiktok.com/upload'
+  if (channel === 'sms') return `sms:?&body=${enc(caption)}`
+  return null
 }
+
+/** One rendered card, ready to hand over: the export id it answers to, the
+ *  file for the OS sheet, the blob for a download. */
+type PreparedItem = { card_id: string; name: string; blob: Blob; file: File }
 
 const PRICE = `${usd(PLAN_TO_PRICE.annual.amount)} / year (${usd(PLAN_TO_PRICE.annual.amount / 12)}/mo) · or ${usd(PLAN_TO_PRICE.monthly.amount)} monthly`
 
@@ -151,6 +161,20 @@ export function JokeSurface() {
 
   // ── the after-save moment ──
   const [shareOpen, setShareOpen] = useState(false)
+  /** The picture(s) behind the open share sheet, rendered the moment it opens
+   *  so a channel tap can hand them over synchronously — the OS share sheet
+   *  and a fresh tab both refuse to open once an await has passed. */
+  const [prepared, setPrepared] = useState<{
+    items: PreparedItem[]
+    res: { tier: JokeTier; width: number; height: number; mark: boolean }
+  } | null>(null)
+  /** What travels with the picture. Prefilled from the card, theirs to edit. */
+  const [caption, setCaption] = useState('')
+  /** Posting as a room goes through a sheet too: the whole scene, written
+   *  out and editable, before anything is opened to other people. */
+  const [postOpen, setPostOpen] = useState(false)
+  const [postCaption, setPostCaption] = useState('')
+  const [posting, setPosting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState<string | null>(null)
   const [upgradeOpen, setUpgradeOpen] = useState(false)
@@ -719,8 +743,9 @@ export function JokeSurface() {
           ? res.images.filter((i) => wanted.has(i.card_id))
           : res.images)
       : res.images
-    const blobs: NamedBlob[] = await Promise.all(
+    const blobs: (NamedBlob & { card_id: string })[] = await Promise.all(
       images.map(async (image) => ({
+        card_id: image.card_id,
         name: image.filename,
         blob: await svgToPng(image.svg, res.width, res.height),
       })),
@@ -802,47 +827,99 @@ export function JokeSurface() {
     }
   }
 
-  /** Sharing hands over the picture and nothing else — no caption, no link.
-   *  On a phone that is the OS sheet, where X, Instagram, TikTok and Messages
-   *  all live; anywhere else the file saves and the destination opens. Free at
-   *  every tier, guests included. */
-  async function doShare(channel: string, all: boolean) {
-    const target = focus
-    if (!all && !target) return
-    if (!all && signedIn && !target?.id) return
+  /** The export id a card answers to: its row id once stored, otherwise the
+   *  `set:position` shape the server hands back for a guest's card. */
+  function exportIdOf(c: JokeCard): string {
+    return c.id ?? `${c.set_id ?? set?.id}:${c.position}`
+  }
+
+  /** Render the picture(s) the moment the sheet opens, so every pill on it can
+   *  hand a file over inside the tap that follows. Renders the whole open set
+   *  when the card belongs to it (that is what "share all" needs), otherwise
+   *  the one card. Free at every tier, guests included. */
+  async function prepareShare(target: JokeCard) {
     setSaving(true)
     try {
+      const inSet = !!set && (signedIn
+        ? !!target.id && exportableIds.includes(target.id)
+        : revealedSlotKeys.has(target.angle))
       let query: ExportQuery
-      if (all && set) {
+      if (inSet && set) {
         query = signedIn ? { set_id: set.id } : { cards: guestExportable.map(heldOf) }
       } else if (signedIn) {
-        query = { card_id: target!.id! }
+        query = { card_id: target.id! }
       } else {
-        query = { cards: [heldOf(target!)] }
+        query = { cards: [heldOf(target)] }
       }
       const { res, blobs } = await renderPngs(query)
       if (blobs.length === 0) throw new Error('no image')
-      const files = blobs.map(pngFile)
-      if (canShareFiles(files)) {
-        try {
-          await navigator.share({ files })
-        } catch (e) {
-          if (isShareAbort(e)) return
-          throw e
-        }
-      } else {
-        await saveEach(blobs)
-        const dest = SHARE_DEST[channel] ?? SHARE_DEST.all
-        if (dest) window.open(dest, '_blank')
-        say('image saved — attach it there.')
-      }
-      jokeTrack('share_completed', res.tier, { channel, n_files: files.length })
+      setPrepared({ res, items: blobs.map((b) => ({ ...b, file: pngFile(b) })) })
     } catch (e) {
-      jokeTrack('share_failed', tier, { channel, reason: e instanceof Error ? e.message : 'unknown' })
-      say('that did not go through. try again?')
+      jokeTrack('share_failed', tier, { channel: 'prepare', reason: e instanceof Error ? e.message : 'unknown' })
+      say('the picture did not render. try once more?')
     } finally {
       setSaving(false)
     }
+  }
+
+  /** Sharing hands over the picture, the caption and a way back. It runs
+   *  SYNCHRONOUSLY off the tap: the OS share sheet and a new tab both refuse
+   *  to open once an await has passed — which is what made every pill look
+   *  dead when the export used to happen here, after the tap. */
+  function doShare(channel: string, all: boolean) {
+    const prep = prepared
+    const target = focus
+    if (!prep || !target) return
+    const wanted = exportIdOf(target)
+    const picked = all ? prep.items : prep.items.filter((i) => i.card_id === wanted)
+    const items = picked.length ? picked : prep.items
+    const files = items.map((i) => i.file)
+    const blobs: NamedBlob[] = items.map((i) => ({ name: i.name, blob: i.blob }))
+    const link = shareLink()
+    const text = caption.trim() || shareCaption(target, set?.situation ?? target.situation ?? '', link)
+    const done = (method: string) =>
+      jokeTrack('share_completed', prep.res.tier, { channel, n_files: files.length, method })
+
+    // A phone: the OS sheet carries picture and caption to X, Instagram,
+    // TikTok or Messages in one move. Nothing may sit between the tap and
+    // this call. A desktop that can share files (Windows) is NOT sent here —
+    // its system dialog has none of those four in it.
+    if (isTouchDevice() && canShareFiles(files)) {
+      navigator
+        .share({ files, text, url: link })
+        .then(() => done('os_sheet'))
+        .catch((e) => {
+          if (isShareAbort(e)) return
+          jokeTrack('share_failed', tier, { channel, reason: e instanceof Error ? e.message : 'unknown' })
+          shareByHand(channel, blobs, text)
+        })
+      return
+    }
+    shareByHand(channel, blobs, text)
+    done('by_hand')
+  }
+
+  /** No OS sheet — a desktop, or a phone that cannot share files. Open the
+   *  destination NOW, while the tap still counts, then save the picture and
+   *  put the caption on the clipboard for the paste. */
+  function shareByHand(channel: string, blobs: NamedBlob[], text: string) {
+    const dest = shareDestination(channel, text)
+    if (channel === 'sms') {
+      // A phone opens Messages with the caption in it; a desktop has nowhere
+      // to send a text, so the caption goes to the clipboard instead.
+      if (isTouchDevice() && dest) window.location.href = dest
+    } else if (dest) {
+      window.open(dest, '_blank', 'noopener')
+    }
+    void navigator.clipboard?.writeText(text).catch(() => {})
+    void saveEach(blobs)
+    say(
+      channel === 'x'
+        ? 'image saved — attach it to the post.'
+        : channel === 'sms' && !isTouchDevice()
+          ? 'image saved, caption copied — text them both.'
+          : 'image saved, caption copied — paste it there.',
+    )
   }
 
   async function openShare(target: JokeCard | null) {
@@ -855,21 +932,43 @@ export function JokeSurface() {
     }
     jokeTrack('card_shared', tier, { slot: target.angle })
     setFocus(target)
+    // The whole scene travels — the situation, the card, the way back — the
+    // same way a spill or a scan does.
+    setCaption(shareCaption(target, set?.situation ?? target.situation ?? ''))
+    setPrepared(null)
     setShareOpen(true)
+    void prepareShare(target)
   }
 
+  /** Posting opens a sheet first: the room's text — the situation, then the
+   *  card, the same whole scene a spill or a scan opens with — written out
+   *  and editable before anything is put in front of other people. */
   async function doPost(target: JokeCard | null) {
     if (!target) return
     if (!signedIn) { raiseGate('post', { type: 'post', position: target.position }); return }
     target = await ensureKept(target)
     if (!target.id) { raiseGate('post', { type: 'post', position: target.position }); return }
     setFocus(target)
+    setPostCaption(roomCaption(target, set?.situation ?? target.situation ?? ''))
+    setPostOpen(true)
+  }
+
+  async function confirmPost() {
+    const target = focus
+    if (!target?.id) return
+    setPosting(true)
     try {
-      const res = await postCard({ data: { card_id: target.id, ...ctx() } })
+      const res = await postCard({ data: { card_id: target.id, caption: postCaption.trim() || undefined, ...ctx() } })
       setPostedAlias(res.alias ?? alias?.display_name ?? 'you')
+      setPostOpen(false)
       jokeTrack('card_posted_to_room', tier, { slot: target.angle })
+      say(res.already ? 'it was already a room — it still is.' : "it's a room now. no one owes you a reply.")
       void refresh()
-    } catch { say('could not open the room. try again?') }
+    } catch {
+      say('could not open the room. try again?')
+    } finally {
+      setPosting(false)
+    }
   }
 
   function startCheckout() {
@@ -1177,7 +1276,7 @@ export function JokeSurface() {
                 {tier === 'guest'
                   ? 'reading, sharing and saving are free, forever — with the little shutap mark. an alias flips the other two.'
                   : tier === 'paying'
-                    ? `clean · ${spec.width}×${spec.height} · no mark on any of them.`
+                    ? 'clean · no mark on any of them.'
                     : `saves at ${spec.width}×${spec.height}, with the little shutap mark.`}
               </div>
             ) : null}
@@ -1299,12 +1398,44 @@ export function JokeSurface() {
         card={focus}
         tier={tier}
         saving={saving}
+        ready={prepared !== null}
         flipped={focusInSet ? exportableCount : 1}
-        onClose={() => setShareOpen(false)}
-        onShare={(channel, all) => void doShare(channel, all)}
+        caption={caption}
+        onCaption={setCaption}
+        onClose={() => { setShareOpen(false); setPrepared(null) }}
+        onShare={(channel, all) => doShare(channel, all)}
         onSave={() => void doSave(focus)}
         onSaveAll={() => void doSaveSet()}
       />
+
+      {/* ── post as a room — the whole scene, shown before it goes out ── */}
+      <Sheet open={postOpen} onClose={() => setPostOpen(false)} width={520}>
+        <div style={{ fontFamily: SORA, fontWeight: 700, fontSize: 20, letterSpacing: '-.03em', color: INK }}>
+          post it as a room
+        </div>
+        <div style={{ fontFamily: SORA, fontSize: 12.5, color: FAINT }}>
+          the room opens with the whole scene — what happened, then the card. names are already scrubbed; edit the rest if you like.
+        </div>
+        <textarea
+          rows={6}
+          value={postCaption}
+          onChange={(e) => setPostCaption(e.target.value)}
+          style={{
+            width: '100%', resize: 'vertical', borderRadius: 14, padding: '12px 14px',
+            border: '1px solid rgba(11,8,15,.14)', background: '#fff', color: INK,
+            fontFamily: NEWS, fontStyle: 'italic', fontSize: 16, lineHeight: 1.45, outline: 'none',
+          }}
+        />
+        <Button onClick={() => void confirmPost()} disabled={posting || !postCaption.trim()} full>
+          {posting ? 'opening the room…' : '◎ post it'}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setPostOpen(false)} full>
+          not now
+        </Button>
+        <div style={{ fontFamily: NEWS, fontStyle: 'italic', fontSize: 13.5, color: FAINT, textAlign: 'center' }}>
+          it goes out under your alias, never your name. no one owes you a reply.
+        </div>
+      </Sheet>
 
       <LimitSheet
         open={limit.open}
