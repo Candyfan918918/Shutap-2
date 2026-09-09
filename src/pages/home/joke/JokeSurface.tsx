@@ -96,8 +96,6 @@ type SetState = { id: string; situation: string; archetype: string }
 
 /** The price line the upgrade sheet quotes: annual first, monthly as the
  *  alternative — the same order the subscribe page leads with. */
-/** Where a saved picture is meant to end up, for the browsers that cannot hand
- *  files to an app themselves. Opened after the file is on disk. */
 /** Where a share lands on a browser that cannot hand files to an app itself.
  *  X takes the caption (link included) in the URL; the others get it on the
  *  clipboard, so only the picture has to be attached by hand. */
