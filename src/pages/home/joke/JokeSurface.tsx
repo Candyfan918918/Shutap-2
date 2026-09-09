@@ -932,21 +932,43 @@ export function JokeSurface() {
     }
     jokeTrack('card_shared', tier, { slot: target.angle })
     setFocus(target)
+    // The whole scene travels — the situation, the card, the way back — the
+    // same way a spill or a scan does.
+    setCaption(shareCaption(target, set?.situation ?? target.situation ?? ''))
+    setPrepared(null)
     setShareOpen(true)
+    void prepareShare(target)
   }
 
+  /** Posting opens a sheet first: the room's text — the situation, then the
+   *  card, the same whole scene a spill or a scan opens with — written out
+   *  and editable before anything is put in front of other people. */
   async function doPost(target: JokeCard | null) {
     if (!target) return
     if (!signedIn) { raiseGate('post', { type: 'post', position: target.position }); return }
     target = await ensureKept(target)
     if (!target.id) { raiseGate('post', { type: 'post', position: target.position }); return }
     setFocus(target)
+    setPostCaption(roomCaption(target, set?.situation ?? target.situation ?? ''))
+    setPostOpen(true)
+  }
+
+  async function confirmPost() {
+    const target = focus
+    if (!target?.id) return
+    setPosting(true)
     try {
-      const res = await postCard({ data: { card_id: target.id, ...ctx() } })
+      const res = await postCard({ data: { card_id: target.id, caption: postCaption.trim() || undefined, ...ctx() } })
       setPostedAlias(res.alias ?? alias?.display_name ?? 'you')
+      setPostOpen(false)
       jokeTrack('card_posted_to_room', tier, { slot: target.angle })
+      say(res.already ? 'it was already a room — it still is.' : "it's a room now. no one owes you a reply.")
       void refresh()
-    } catch { say('could not open the room. try again?') }
+    } catch {
+      say('could not open the room. try again?')
+    } finally {
+      setPosting(false)
+    }
   }
 
   function startCheckout() {
@@ -1254,7 +1276,7 @@ export function JokeSurface() {
                 {tier === 'guest'
                   ? 'reading, sharing and saving are free, forever — with the little shutap mark. an alias flips the other two.'
                   : tier === 'paying'
-                    ? `clean · ${spec.width}×${spec.height} · no mark on any of them.`
+                    ? 'clean · no mark on any of them.'
                     : `saves at ${spec.width}×${spec.height}, with the little shutap mark.`}
               </div>
             ) : null}
