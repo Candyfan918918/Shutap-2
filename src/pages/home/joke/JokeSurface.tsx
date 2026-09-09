@@ -743,8 +743,9 @@ export function JokeSurface() {
           ? res.images.filter((i) => wanted.has(i.card_id))
           : res.images)
       : res.images
-    const blobs: NamedBlob[] = await Promise.all(
+    const blobs: (NamedBlob & { card_id: string })[] = await Promise.all(
       images.map(async (image) => ({
+        card_id: image.card_id,
         name: image.filename,
         blob: await svgToPng(image.svg, res.width, res.height),
       })),
@@ -826,47 +827,99 @@ export function JokeSurface() {
     }
   }
 
-  /** Sharing hands over the picture and nothing else — no caption, no link.
-   *  On a phone that is the OS sheet, where X, Instagram, TikTok and Messages
-   *  all live; anywhere else the file saves and the destination opens. Free at
-   *  every tier, guests included. */
-  async function doShare(channel: string, all: boolean) {
-    const target = focus
-    if (!all && !target) return
-    if (!all && signedIn && !target?.id) return
+  /** The export id a card answers to: its row id once stored, otherwise the
+   *  `set:position` shape the server hands back for a guest's card. */
+  function exportIdOf(c: JokeCard): string {
+    return c.id ?? `${c.set_id ?? set?.id}:${c.position}`
+  }
+
+  /** Render the picture(s) the moment the sheet opens, so every pill on it can
+   *  hand a file over inside the tap that follows. Renders the whole open set
+   *  when the card belongs to it (that is what "share all" needs), otherwise
+   *  the one card. Free at every tier, guests included. */
+  async function prepareShare(target: JokeCard) {
     setSaving(true)
     try {
+      const inSet = !!set && (signedIn
+        ? !!target.id && exportableIds.includes(target.id)
+        : revealedSlotKeys.has(target.angle))
       let query: ExportQuery
-      if (all && set) {
+      if (inSet && set) {
         query = signedIn ? { set_id: set.id } : { cards: guestExportable.map(heldOf) }
       } else if (signedIn) {
-        query = { card_id: target!.id! }
+        query = { card_id: target.id! }
       } else {
-        query = { cards: [heldOf(target!)] }
+        query = { cards: [heldOf(target)] }
       }
       const { res, blobs } = await renderPngs(query)
       if (blobs.length === 0) throw new Error('no image')
-      const files = blobs.map(pngFile)
-      if (canShareFiles(files)) {
-        try {
-          await navigator.share({ files })
-        } catch (e) {
-          if (isShareAbort(e)) return
-          throw e
-        }
-      } else {
-        await saveEach(blobs)
-        const dest = SHARE_DEST[channel] ?? SHARE_DEST.all
-        if (dest) window.open(dest, '_blank')
-        say('image saved — attach it there.')
-      }
-      jokeTrack('share_completed', res.tier, { channel, n_files: files.length })
+      setPrepared({ res, items: blobs.map((b) => ({ ...b, file: pngFile(b) })) })
     } catch (e) {
-      jokeTrack('share_failed', tier, { channel, reason: e instanceof Error ? e.message : 'unknown' })
-      say('that did not go through. try again?')
+      jokeTrack('share_failed', tier, { channel: 'prepare', reason: e instanceof Error ? e.message : 'unknown' })
+      say('the picture did not render. try once more?')
     } finally {
       setSaving(false)
     }
+  }
+
+  /** Sharing hands over the picture, the caption and a way back. It runs
+   *  SYNCHRONOUSLY off the tap: the OS share sheet and a new tab both refuse
+   *  to open once an await has passed — which is what made every pill look
+   *  dead when the export used to happen here, after the tap. */
+  function doShare(channel: string, all: boolean) {
+    const prep = prepared
+    const target = focus
+    if (!prep || !target) return
+    const wanted = exportIdOf(target)
+    const picked = all ? prep.items : prep.items.filter((i) => i.card_id === wanted)
+    const items = picked.length ? picked : prep.items
+    const files = items.map((i) => i.file)
+    const blobs: NamedBlob[] = items.map((i) => ({ name: i.name, blob: i.blob }))
+    const link = shareLink()
+    const text = caption.trim() || shareCaption(target, set?.situation ?? target.situation ?? '', link)
+    const done = (method: string) =>
+      jokeTrack('share_completed', prep.res.tier, { channel, n_files: files.length, method })
+
+    // A phone: the OS sheet carries picture and caption to X, Instagram,
+    // TikTok or Messages in one move. Nothing may sit between the tap and
+    // this call. A desktop that can share files (Windows) is NOT sent here —
+    // its system dialog has none of those four in it.
+    if (isTouchDevice() && canShareFiles(files)) {
+      navigator
+        .share({ files, text, url: link })
+        .then(() => done('os_sheet'))
+        .catch((e) => {
+          if (isShareAbort(e)) return
+          jokeTrack('share_failed', tier, { channel, reason: e instanceof Error ? e.message : 'unknown' })
+          shareByHand(channel, blobs, text)
+        })
+      return
+    }
+    shareByHand(channel, blobs, text)
+    done('by_hand')
+  }
+
+  /** No OS sheet — a desktop, or a phone that cannot share files. Open the
+   *  destination NOW, while the tap still counts, then save the picture and
+   *  put the caption on the clipboard for the paste. */
+  function shareByHand(channel: string, blobs: NamedBlob[], text: string) {
+    const dest = shareDestination(channel, text)
+    if (channel === 'sms') {
+      // A phone opens Messages with the caption in it; a desktop has nowhere
+      // to send a text, so the caption goes to the clipboard instead.
+      if (isTouchDevice() && dest) window.location.href = dest
+    } else if (dest) {
+      window.open(dest, '_blank', 'noopener')
+    }
+    void navigator.clipboard?.writeText(text).catch(() => {})
+    void saveEach(blobs)
+    say(
+      channel === 'x'
+        ? 'image saved — attach it to the post.'
+        : channel === 'sms' && !isTouchDevice()
+          ? 'image saved, caption copied — text them both.'
+          : 'image saved, caption copied — paste it there.',
+    )
   }
 
   async function openShare(target: JokeCard | null) {
