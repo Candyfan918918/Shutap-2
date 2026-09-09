@@ -161,6 +161,20 @@ export function JokeSurface() {
 
   // ── the after-save moment ──
   const [shareOpen, setShareOpen] = useState(false)
+  /** The picture(s) behind the open share sheet, rendered the moment it opens
+   *  so a channel tap can hand them over synchronously — the OS share sheet
+   *  and a fresh tab both refuse to open once an await has passed. */
+  const [prepared, setPrepared] = useState<{
+    items: PreparedItem[]
+    res: { tier: JokeTier; width: number; height: number; mark: boolean }
+  } | null>(null)
+  /** What travels with the picture. Prefilled from the card, theirs to edit. */
+  const [caption, setCaption] = useState('')
+  /** Posting as a room goes through a sheet too: the whole scene, written
+   *  out and editable, before anything is opened to other people. */
+  const [postOpen, setPostOpen] = useState(false)
+  const [postCaption, setPostCaption] = useState('')
+  const [posting, setPosting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState<string | null>(null)
   const [upgradeOpen, setUpgradeOpen] = useState(false)
