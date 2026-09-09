@@ -79,6 +79,13 @@ export function CardBack({
           <span style={{ font: 'italic 400 5cqw/1.35 Newsreader,serif', color: CARD_INK_2, textWrap: 'pretty' }}>
             {subtitle}
           </span>
+          {holding ? (
+            // Said in words as well as shown, so a held card is never mistaken
+            // for a broken one: it is being written, and it will turn.
+            <span aria-live="polite" style={{ font: '500 4.2cqw/1.4 Inter,sans-serif', color: CARD_INK_2, letterSpacing: '.02em', marginTop: '1.5cqw' }}>
+              writing this one…
+            </span>
+          ) : null}
         </div>
 
         <span style={{ position: 'relative', font: '400 4.2cqw/1.45 Inter,sans-serif', color: CARD_FAINT, textWrap: 'pretty' }}>

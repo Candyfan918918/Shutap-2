@@ -67,6 +67,9 @@ import { CardBack, CardBackStyles } from './CardBack'
 import { FlipCard } from './FlipCard'
 import { CardActions } from './CardActions'
 import { PaywallBlock, PAYWALL_ID } from './PaywallBlock'
+
+/** sessionStorage: the spill being typed, so a reload does not eat it. */
+const DRAFT_KEY = 'shutap_joke_draft'
 import { SetList, type SetGroup } from './SetList'
 import { useDeck } from './useDeck'
 
@@ -127,6 +130,22 @@ export function JokeSurface() {
 
   // ── composer ──
   const [text, setText] = useState('')
+  // The words survive a reload. A spill is typed once; a preview refresh, a
+  // tab the browser threw away or a deal that took the page with it must
+  // not cost the reader the thing they just wrote. Restored after mount so
+  // the server and the browser first agree on an empty box.
+  useEffect(() => {
+    try {
+      const kept = sessionStorage.getItem(DRAFT_KEY)
+      if (kept) setText((cur) => cur || kept)
+    } catch { /* noop */ }
+  }, [])
+  useEffect(() => {
+    try {
+      if (text) sessionStorage.setItem(DRAFT_KEY, text)
+      else sessionStorage.removeItem(DRAFT_KEY)
+    } catch { /* noop */ }
+  }, [text])
   const [busy, setBusy] = useState(false)
   const [howOpen, setHowOpen] = useState(false)
 
@@ -639,6 +658,7 @@ export function JokeSurface() {
       // nothing left to write and nothing to report progress on.
       if (res.cards) {
         setCards(res.cards)
+        try { sessionStorage.removeItem(DRAFT_KEY) } catch { /* noop */ }
         jokeTrack('cards_dealt', res.tier, {
           fallbacks: res.cards.filter((c) => c.used_fallback).length,
         })
@@ -673,6 +693,10 @@ export function JokeSurface() {
       )
 
       const landed = settled.flatMap((r) => (r && r.ok ? [r.card] : []))
+      // The draft has done its job the moment a card is on screen.
+      if (landed.length > 0) {
+        try { sessionStorage.removeItem(DRAFT_KEY) } catch { /* noop */ }
+      }
       if (landed.length === 0) {
         setDealFailed(true)
         say('the deck jammed on that one. one more go?')
@@ -1235,7 +1259,7 @@ export function JokeSurface() {
                   return (
                     <div key={slot.key} style={{ display: 'flex', flexDirection: 'column', gap: 11, maxWidth: 340, width: '100%', margin: '0 auto' }}>
                       <FlipCard
-                        phase={phaseOf === 'hold' ? 'out' : phaseOf}
+                        phase={phaseOf}
                         onTap={() => deck.tap(slot.key)}
                         label={slot.label}
                         hint={revealed && dealt ? dealt.text : slot.subtitle}

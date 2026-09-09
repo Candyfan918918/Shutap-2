@@ -55,6 +55,22 @@ export function judgeModel(): string {
   return wanted
 }
 
+/* ───────────────────────────── budgets ─────────────────────────────
+   The flip is the latency budget, and a held card is a card the reader
+   thinks has vanished. Every call gets a wall-clock cap; past it the ladder
+   moves on — the writer without premises, the judge replaced by the first
+   line the hard rules let through, and at the bottom the authored floor.
+   Tunable per stage with JOKE_*_MS. */
+function budgetMs(name: string, fallback: number): number {
+  const n = Number(process.env[name] ?? '')
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+export const BUDGET = {
+  premises: () => budgetMs('JOKE_PREMISE_MS', 12_000),
+  candidates: () => budgetMs('JOKE_CANDIDATE_MS', 20_000),
+  judge: () => budgetMs('JOKE_JUDGE_MS', 12_000),
+}
+
 /* ───────────────────────────── shapes ───────────────────────────── */
 
 export type Premise = { t: string; used: boolean }
@@ -188,6 +204,7 @@ export async function runPremisePass(situation: string): Promise<Premise[]> {
     model: writerModel(),
     temperature: 1.0,
     maxTokens: 2000,
+    timeoutMs: BUDGET.premises(),
     messages: [{ role: 'user', content: fill(PREMISE_PROMPT, { SITUATION: situation.slice(0, 1500) }) }],
   })
   if (res.error) {
@@ -260,6 +277,7 @@ export async function runCandidatePass(
     model: writerModel(),
     temperature: 1.0,
     maxTokens: 2500,
+    timeoutMs: BUDGET.candidates(),
     messages: [{ role: 'user', content: prompt }],
   })
   if (res.error) return { candidates: [], model: res.model, error: res.error }
@@ -304,7 +322,10 @@ export async function runJudge(args: {
   const res = await callAgent({
     model,
     temperature: 0,
+    // A judge that thinks for a minute is a judge nobody waited for.
+    reasoningEffort: 'low',
     maxTokens: 4000,
+    timeoutMs: BUDGET.judge(),
     messages: [{ role: 'user', content: prompt }],
   })
   const empty: Verdict = { winner: null, why: null, ranking: [], rejected: [], model }

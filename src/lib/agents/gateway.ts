@@ -30,6 +30,14 @@ export async function callAgent(opts: {
   model?: string
   /** Sampling temperature. Omitted → the model's own default. */
   temperature?: number
+  /** Reasoning models only (gpt-5 family): how long they may think before
+   *  answering. 'low' is the difference between a judge that answers inside
+   *  a flip and one that answers after the reader has left. */
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  /** Hard wall-clock budget for the call. Past it the call is abandoned and
+   *  reported as an error, so a caller with a floor can use the floor
+   *  instead of holding a card on its edge forever. */
+  timeoutMs?: number
 }): Promise<{ text: string; error?: string; model: string }> {
   const maxTokens = Math.min(Math.max(opts.maxTokens ?? 1500, 64), 4096)
   // Default to Flash: 2.5-Pro spends hidden reasoning tokens against
@@ -38,6 +46,8 @@ export async function callAgent(opts: {
   const modelId = opts.model || process.env.LOVABLE_AI_MODEL || DEFAULT_MODEL
   const lovableKey = process.env.LOVABLE_API_KEY
   if (!lovableKey) return { text: '', error: 'no AI key', model: modelId }
+  const controller = opts.timeoutMs ? new AbortController() : null
+  const timer = controller ? setTimeout(() => controller.abort(), opts.timeoutMs) : null
   try {
     const gateway = createLovableAiGatewayProvider(lovableKey)
     const result = await generateText({
@@ -48,10 +58,22 @@ export async function callAgent(opts: {
       ...(opts.temperature !== undefined && acceptsTemperature(modelId)
         ? { temperature: opts.temperature }
         : {}),
+      ...(opts.reasoningEffort && !acceptsTemperature(modelId)
+        ? { providerOptions: { lovable: { reasoningEffort: opts.reasoningEffort } } }
+        : {}),
+      ...(controller ? { abortSignal: controller.signal } : {}),
     })
     return { text: result.text, model: modelId }
   } catch (err) {
-    return { text: '', error: err instanceof Error ? err.message : 'gateway error', model: modelId }
+    const aborted = controller?.signal.aborted
+    const message = aborted
+      ? `timed out after ${opts.timeoutMs}ms`
+      : err instanceof Error
+        ? err.message
+        : 'gateway error'
+    return { text: '', error: message, model: modelId }
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }
 

@@ -271,7 +271,7 @@ export function JokeCardsDesign() {
             return (
               <div key={slot.key} style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
                 <FlipCard
-                  phase={phase === 'hold' ? 'out' : phase}
+                  phase={phase}
                   onTap={() => deck.tap(slot.key)}
                   label={slot.label}
                   hint={revealed ? card.text : slot.subtitle}

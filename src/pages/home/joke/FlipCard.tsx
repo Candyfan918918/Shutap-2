@@ -9,13 +9,21 @@
  * Mechanically it is a half-turn out, a swap at the edge, and a half-turn back
  * in, which is why the phases below are `out` → `edge` → `in` rather than a
  * single rotation: swapping the content at the halfway point is what makes the
- * two faces read as two sides of one card. */
+ * two faces read as two sides of one card.
+ *
+ * The hold is NOT the edge. A card at exactly 90° has no width, so a reader
+ * who turned it over before it was written watched it vanish and took the
+ * deck for two cards. Held, it turns most of the way and stops there, back
+ * still showing, pulsing — visibly a card mid-turn, waiting. */
 import type { ReactNode } from 'react'
 
 /** `edge` is one frame wide — the card sits at -90°, content already swapped,
  *  with the transition suppressed so it doesn't animate back through zero.
  *  The phases are driven by useDeck, which owns the flip budget. */
-export type FlipPhase = 'front' | 'out' | 'edge' | 'in'
+export type FlipPhase = 'front' | 'out' | 'hold' | 'edge' | 'in'
+
+/** Where a held card stops: most of the way round, still plainly a card. */
+const HOLD_ANGLE = 58
 
 /** Half a turn. The whole flip is two of these, ~450ms, ease-out. */
 export const HALF_TURN = 225
@@ -63,7 +71,13 @@ export function FlipCard({
       <div
         style={{
           transform:
-            phase === 'out' ? 'rotateY(90deg)' : phase === 'edge' ? 'rotateY(-90deg)' : 'rotateY(0deg)',
+            phase === 'out'
+              ? 'rotateY(90deg)'
+              : phase === 'hold'
+                ? `rotateY(${HOLD_ANGLE}deg)`
+                : phase === 'edge'
+                  ? 'rotateY(-90deg)'
+                  : 'rotateY(0deg)',
           // No transition across the edge, or the card would animate the swap
           // back through the front it just left.
           transition: phase === 'edge' ? 'none' : `transform ${HALF_TURN}ms cubic-bezier(.2,.8,.2,1)`,
