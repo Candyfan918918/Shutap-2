@@ -14,7 +14,7 @@
  * The tier, the card text and the export size are all resolved on the server.
  * This component only draws what it is handed. */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useRouter } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { supabase } from '@/integrations/supabase/client'
 import {
@@ -119,6 +119,7 @@ const PRICE = `${usd(PLAN_TO_PRICE.annual.amount)} / year (${usd(PLAN_TO_PRICE.a
 
 export function JokeSurface() {
   const navigate = useNavigate()
+  const router = useRouter()
   const submit = useServerFn(submitJokeEntry)
   const openDeal = useServerFn(openJokeDeal)
   const writeCard = useServerFn(writeJokeCard)
@@ -297,6 +298,14 @@ export function JokeSurface() {
     () => new Set(deck.revealedSlots.map((sl) => sl.key as string)),
     [deck.revealedSlots],
   )
+
+  // A guest with a card turned over is one tap from the alias gate. Fetch
+  // /welcome's code now, while they read, so the tap is a cut and not a load.
+  const guestCanGate = tier === 'guest' && deck.revealedSlots.length > 0
+  useEffect(() => {
+    if (!guestCanGate) return
+    void router.preloadRoute({ to: '/welcome' }).catch(() => {})
+  }, [guestCanGate, router])
 
   /** The cards of the open situation that are turned over AND on file — the
    *  ones "all N" means for anyone signed in. */
@@ -536,16 +545,20 @@ export function JokeSurface() {
 
   function raiseGate(trigger: string, p: Pending) {
     pending.current = p
-    // Sign-in is a full-page round trip, so the deck and the thing they were
-    // reaching for are written down before the handoff to /welcome, which
-    // honours this on its last step and sends them back here — true for every
-    // gate, including the ones that fire with no set open.
+    // The deck and the thing they were reaching for are written down before
+    // the handoff to /welcome, which honours this on its last step and sends
+    // them back here — true for every gate, including the ones that fire
+    // with no set open. Both writes are synchronous, so they are on disk
+    // before the next line runs.
     try { sessionStorage.setItem('shutap_returnTo', '/') } catch { /* noop */ }
     notePending(p, '/')
     jokeTrack('alias_gate_shown', tier, { trigger })
-    // No in-page sheet: the gate is /welcome itself, reached by a full page
-    // load so the note and returnTo above are committed before the handoff.
-    window.location.assign('/welcome')
+    // No in-page sheet: the gate is /welcome itself. Reached in-app, not by
+    // a full page load — a reload re-fetches the whole bundle and re-runs
+    // the root bootstrap, which read as a ten-second freeze between the tap
+    // and the sign-in form. /welcome hands back the same way (see
+    // WelcomeEnterStep), and this page picks the note up on mount.
+    void navigate({ to: '/welcome' })
   }
 
   /** The limit, instead of a deck. Nothing is written for a spent day. */
