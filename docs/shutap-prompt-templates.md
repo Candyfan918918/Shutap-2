@@ -77,6 +77,15 @@ Rules:
   true of THIS situation.
 - Never observe anything about the person this happened to. Only about the
   other person's behaviour and the situation itself.
+- NO SECOND PARTY. Some situations have no other adult in them — the user
+  describing their own week, a toddler, a broken object, an accumulation of
+  small tasks. Do NOT fall back to observing the user. Aim everything at the
+  MECHANISM: what the circumstance structurally is, what work it silently
+  creates, what the physical act actually does. The engines still apply —
+  a toddler is described as eating while relocating the food (engine 2);
+  the floor has quietly become a second diner (engine 5).
+  If the user has said something critical about themselves, that sentence is
+  off limits entirely. Never confirm it, never soften it, never joke near it.
 - One sentence each. Shorter is better. The best observations are under
   twelve words.
 
@@ -135,7 +144,12 @@ CRAFT — every line, no exceptions:
 NEVER WRITE:
   "welcome to X, population: you"
   "congratulations, you've unlocked"
-  "that's not X, that's Y"
+  "that's not X, that's Y"  — banned as a RESTATEMENT device, which is what
+      it almost always is. Permitted only when the second half is a genuine
+      reframe that could stand alone as an observation, never when it merely
+      renames the first half.
+        Banned:    "That's not cleaning, that's inspecting the dirt."
+        Permitted: "He's not eating, he's testing the coverage."
   "and somehow I'm the villain"
   "plot twist:"
   "main character energy"
@@ -197,11 +211,16 @@ THEN, among what survives:
   it is easy to miss, because a restatement reads as accurate. Applies to all
   three cards, not just the take. A roast that retells the situation with one
   clever word added has failed it.
-- Length is NOT a ranking criterion. Do not prefer a compressed verdict over
-  a line that builds its argument across two clauses. The second kind is
-  usually funnier here, because the reader watches the comparison get made
-  rather than being handed the conclusion. Cut only words that carry nothing
-  — never cut the reasoning itself.
+- REGISTER FOLLOWS TARGET. Which shape ranks higher depends on what the line
+  is aimed at.
+    Aimed at a PERSON: prefer the two-clause build that makes the reasoning
+    visible. There is a case to be made and the reader wants to watch it get
+    made. "He built twenty minutes of infrastructure to explain two hours."
+    Aimed at a CIRCUMSTANCE: prefer the compressed reframe. Nobody is guilty,
+    so there is no case to build — only a thing to see differently.
+    "Children eat the way water finds a level — outward."
+  Length itself is never the criterion. Cut words that carry nothing, never
+  cut the reasoning.
 - Does it land on the surprising word, or does it explain itself at the end?
 - Is the premise one someone would actually have missed, or the first thing
   anyone would say?
@@ -250,6 +269,10 @@ references a future conversation. If it reads as advice, it has failed.
 Turn their own words back on them where possible — their excuse is usually
 the charge.
 
+ADDRESSEE. Usually the other adult in the situation. When there is no other
+adult, address whatever is causing it — the toddler, the object, the process.
+It does not need to be able to reply. Never address the user.
+
 THE ANSWERABILITY TEST. A clapback ends where they have to answer. If they
 could nod, agree, and move on, it was an observation and it has failed. There
 should be no reply available that does not make it worse for them.
@@ -274,10 +297,12 @@ NOT A LOUDER RETELLING. The most common failure is narrating the situation
 back with one clever word inserted. That is a restatement with decoration,
 and it ranks below a plain observation. The roast must arrive somewhere the
 retelling could not reach.
-Length is not a virtue either way. A two-clause line that makes the
-comparison visible usually beats a compressed verdict — "he built twenty
-minutes of infrastructure to explain two hours" over "he arrived with
-exhibits." Cut dead words, never the reasoning.
+REGISTER FOLLOWS TARGET. When the line is aimed at a person, the two-clause
+build usually wins — the reader wants to watch the case get made: "he built
+twenty minutes of infrastructure to explain two hours." When it is aimed at a
+circumstance rather than a person, the compressed reframe wins instead —
+there is no case to build, only a thing to see differently: "children eat the
+way water finds a level — outward." Cut dead words, never the reasoning.
 NEVER: the person it happened to. The target is the other person's behaviour
 and the situation, always.`
 }

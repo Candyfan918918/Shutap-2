@@ -131,7 +131,10 @@ const CLINICAL = /\b(boundar(y|ies)|toxic|gaslight\w*|narcissis\w*|therap\w*|tra
 const BANNED: { rule: string; re: RegExp }[] = [
   { rule: 'welcome to X, population: you', re: /welcome to [^,.]{1,40},? population:? you/i },
   { rule: "congratulations, you've unlocked", re: /congratulations,? you'?ve unlocked/i },
-  { rule: "that's not X, that's Y", re: /\b(that|this|it)(?:'s| is)(?:n'?t| not) (?:a |an |the )?[^,.;]{1,40}[,;—–-]+ ?(?:that|this|it)(?:'s| is) /i },
+  // "that's not X, that's Y" is deliberately NOT here: since prompt 2.1.0 it
+  // is permitted when the second half is a genuine reframe, and only the
+  // judge can tell a reframe from a rename. A regex would throw out the
+  // good ones with the lazy ones.
   { rule: "and somehow I'm the villain", re: /and somehow i'?m the villain/i },
   { rule: 'plot twist:', re: /\bplot twist\b/i },
   { rule: 'main character energy', re: /main character (energy|moment|syndrome|behaviou?r)/i },
